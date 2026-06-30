@@ -1,0 +1,108 @@
+// =============================================================================
+// TUS product loader — cycles t-shirt, cap, mug, bottle
+// =============================================================================
+
+$tus-loader-cycle: 3.2s;
+$tus-loader-icon-size: 52px;
+
+@keyframes tus-product-loader-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes tus-product-loader-icon {
+    0%,
+    100% {
+        opacity: 0;
+        transform: scale(0.82) translateY(6px);
+    }
+    6%,
+    22% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    28% {
+        opacity: 0;
+        transform: scale(0.9) translateY(-2px);
+    }
+}
+
+.tus-product-loader {
+    position: relative;
+    width: $tus-loader-icon-size + 28px;
+    height: $tus-loader-icon-size + 28px;
+    margin: 0 auto 4px;
+    color: var(--tus-ref-accent, #4d5038);
+}
+
+.tus-product-loader__ring {
+    position: absolute;
+    inset: 0;
+    border: 2px solid #e2e8f0;
+    border-top-color: var(--tus-ref-accent, #4d5038);
+    border-radius: 50%;
+    animation: tus-product-loader-ring 1.15s linear infinite;
+}
+
+.tus-product-loader__icons {
+    position: absolute;
+    inset: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tus-product-loader__icon {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    animation: tus-product-loader-icon $tus-loader-cycle ease-in-out infinite;
+}
+
+.tus-product-loader__icon--shirt {
+    animation-delay: 0s;
+}
+
+.tus-product-loader__icon--cap {
+    animation-delay: $tus-loader-cycle * 0.25;
+}
+
+.tus-product-loader__icon--mug {
+    animation-delay: $tus-loader-cycle * 0.5;
+}
+
+.tus-product-loader__icon--bottle {
+    animation-delay: $tus-loader-cycle * 0.75;
+}
+
+// Full-page loader
+.fab_loader_wrapper .fab-loader,
+.main_wrapper .tus-canvas-loader .fab-loader {
+    .fab-loader-circle {
+        display: none !important;
+    }
+
+    .tus-product-loader {
+        flex-shrink: 0;
+    }
+
+    .fab-loader-text {
+        margin-top: 4px;
+    }
+}
+
+// Ref layout canvas loader accent
+.fabric_container.tus-ref-layout .main_wrapper .tus-canvas-loader {
+    .tus-product-loader {
+        color: var(--tus-ref-accent);
+    }
+
+    .tus-product-loader__ring {
+        border-top-color: var(--tus-ref-accent);
+    }
+}

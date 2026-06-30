@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="tus_product_personalizer.MatrixContent">
+        <div class="tus-matrix-wrapper"
+             t-att-data-product-template-id="matrix.product_template_id">
+            
+            <!-- Step 1: Color Selection -->
+            <div class="tus-matrix-step mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold">Step 1: Select Colors</div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary tus-matrix-toggle-colors-btn d-none">
+                        <i class="fa fa-chevron-up tus-matrix-colors-icon"/>
+                        <span class="ms-1">Hide</span>
+                    </button>
+                </div>
+                <div class="tus-matrix-color-selection-container">
+                    <div class="row g-2">
+                        <t t-foreach="matrix.colors" t-as="color" t-key="color.id">
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <button type="button"
+                                        class="btn btn-outline-secondary w-100 text-start tus-matrix-color-option d-flex align-items-center gap-2 p-1"
+                                        t-att-data-color-id="color.id"
+                                        t-att-data-color-name="color.name">
+                                    <img t-if="color.image" t-att-src="color.image" 
+                                         style="width: 24px; height: 24px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd;"/>
+                                    <span t-elif="color.html_color" 
+                                          t-attf-style="background-color: #{color.html_color}; width: 24px; height: 24px; border-radius: 4px; display: inline-block; border: 1px solid #ddd;"></span>
+                                    <span t-esc="color.name" class="text-truncate flex-grow-1 ms-1"/>
+                                </button>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Other Attributes Selection (Optional) -->
+            <div class="tus-matrix-step mb-4 d-none" id="tus-matrix-other-attrs">
+                <div class="fw-semibold mb-2">Step 2: Select Other Options</div>
+                <div class="tus-matrix-other-attributes-container"></div>
+            </div>
+
+            <!-- Step 3: Size Tables -->
+            <div class="tus-matrix-step">
+                <div class="fw-semibold mb-2">Step 3: Enter Quantities</div>
+                <div class="tus-matrix-size-tables">
+                    <div class="text-center text-muted py-4 tus-matrix-tables-placeholder">
+                        Select colors and other options to see size tables.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

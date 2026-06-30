@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="canvas_preset_business_card" model="editor.canvas.preset">
+            <field name="name">Business Card</field>
+            <field name="sequence">10</field>
+            <field name="width">3.5</field>
+            <field name="height">2</field>
+            <field name="unit">in</field>
+        </record>
+        <record id="canvas_preset_greeting_card" model="editor.canvas.preset">
+            <field name="name">Greeting Card</field>
+            <field name="sequence">20</field>
+            <field name="width">5</field>
+            <field name="height">7</field>
+            <field name="unit">in</field>
+        </record>
+        <record id="canvas_preset_invitation" model="editor.canvas.preset">
+            <field name="name">Invitation</field>
+            <field name="sequence">30</field>
+            <field name="width">4.25</field>
+            <field name="height">5.5</field>
+            <field name="unit">in</field>
+        </record>
+        <record id="canvas_preset_8x10" model="editor.canvas.preset">
+            <field name="name">8 × 10 Print</field>
+            <field name="sequence">40</field>
+            <field name="width">8</field>
+            <field name="height">10</field>
+            <field name="unit">in</field>
+        </record>
+        <record id="canvas_preset_a5_flyer" model="editor.canvas.preset">
+            <field name="name">A5 Flyer</field>
+            <field name="sequence">50</field>
+            <field name="width">148</field>
+            <field name="height">210</field>
+            <field name="unit">mm</field>
+        </record>
+        <record id="canvas_preset_letter_flyer" model="editor.canvas.preset">
+            <field name="name">Letter Flyer</field>
+            <field name="sequence">60</field>
+            <field name="width">8.5</field>
+            <field name="height">11</field>
+            <field name="unit">in</field>
+        </record>
+    </data>
+</odoo>

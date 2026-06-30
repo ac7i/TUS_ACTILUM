@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <template
+        id="website_sale_product_design"
+        inherit_id="website_sale.cta_wrapper"
+        priority="4"
+    >
+        <xpath expr="//div[@id='o_wsale_cta_wrapper']" position="inside">
+            <t t-if="product.empty_canvas">
+                <div class="tus-empty-canvas-picker">
+                    <div class="tus-empty-canvas-picker-title">Choose your canvas</div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Canvas size</label>
+                        <select class="form-select tus-empty-canvas-preset-select">
+                            <option value="">Loading sizes...</option>
+                        </select>
+                    </div>
+                    <div class="tus-empty-canvas-custom-fields d-none mb-2">
+                        <label class="form-label small text-muted">Custom size</label>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <input type="number" min="0" step="0.01" class="form-control" id="tusEmptyCanvasWidth" placeholder="Width"/>
+                            </div>
+                            <div class="col-4">
+                                <input type="number" min="0" step="0.01" class="form-control" id="tusEmptyCanvasHeight" placeholder="Height"/>
+                            </div>
+                            <div class="col-4">
+                                <select class="form-select" id="tusEmptyCanvasUnit">
+                                    <option value="in">in</option>
+                                    <option value="mm">mm</option>
+                                    <option value="cm">cm</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Print side</label>
+                        <div class="tus-empty-canvas-side-options">
+                            <label class="form-check form-check-inline">
+                                <input class="form-check-input tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="front" checked="checked"/>
+                                Front
+                            </label>
+                            <label class="form-check form-check-inline">
+                                <input class="form-check-input tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="back"/>
+                                Back
+                            </label>
+                            <label class="form-check form-check-inline">
+                                <input class="form-check-input tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="both"/>
+                                Front &amp; Back
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </t>
+            <a
+                href="#"
+                class="btn btn-primary customize_design"
+                t-if="len(product.views) or product.empty_canvas"
+            >
+                <i class="fa fa-pencil-square-o" aria-hidden="true" />
+                Customize Design
+            </a>
+        </xpath>
+    </template>
+
+    <template id="product_design_image" name="Product Design Image">
+        <div
+            class="template_option"
+            t-att-data-design_id="design_id.id"
+            data-mode="Contact"
+        >
+            <img
+                class="template_img"
+                t-att-src="image_data_uri(design_id.uploaded_attachment)"
+                alt="Template"
+            />
+        </div>
+    </template>
+
+</odoo>

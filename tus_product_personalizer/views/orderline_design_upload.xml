@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data>
+        <record id="orderline_design_upload_view_list" model="ir.ui.view">
+            <field name="name">orderline.design.upload.view</field>
+            <field name="model">orderline.design.upload</field>
+            <field name="arch" type="xml">
+                <list string="Uploaded Design">
+                    <field name="name" />
+                    <field name="order_id" />
+                    <field name="order_line" />
+                    <field name="uploaded_type" />
+                    <field name="design_svg" column_invisible="1"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="orderline_design_upload_view_form" model="ir.ui.view">
+            <field name="name">orderline.design.upload.form</field>
+            <field name="model">orderline.design.upload</field>
+            <field name="arch" type="xml">
+                <form string="Upload Design">
+                    <header>
+                        <button name="action_download_svg"
+                                type="object"
+                                string="Download SVG"
+                                class="btn-primary"
+                                icon="fa-download"/>
+                        <button name="action_download_ai"
+                                type="object"
+                                string="Download AI"
+                                class="btn-secondary"
+                                icon="fa-download"
+                                invisible="not design_ai"/>
+                        <button name="action_download_design"
+                                type="object"
+                                string="Download Preview (PNG)"
+                                invisible="not uploaded_attachment"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="name" />
+                                <field name="order_id" />
+                                <field name="order_line" />
+                            </group>
+                            <group>
+                                <field name="uploaded_type" />
+                                <field name="print_width" />
+                                <field name="print_height" />
+                                <field name="print_unit" />
+                                <field name="canvas_background_color" widget="color"/>
+                                <field name="finish_varnish_type"/>
+                                <field name="finish_relief_mm"/>
+                                <field name="uploaded_attachment" filename="name" />
+                                <field name="uploaded_attachment_rel"
+                                       widget="image"
+                                       class="tus-orderline-design-preview"/>
+                                <field name="design_svg" invisible="1"/>
+                                <field name="design_ai" invisible="1"/>
+                            </group>
+                        </group>
+                        <group>
+                            <field name="design_ids" readonly="1">
+                                    <list>
+                                        <field name="tus_finish_effect"/>
+                                        <field name="tus_foil_metal"
+                                               invisible="tus_finish_effect not in ('foil', 'foil_emboss')"/>
+                                        <field name="tus_relief_mm"/>
+                                        <field name="tus_varnish_type"/>
+                                        <field name="imprint_design_attribute" widget="json"/>
+                                        <field name="imprint_image" widget="image"/>
+                                        <field name="imprint_width"/>
+                                        <field name="imprint_width_uom"/>
+                                        <field name="imprint_height"/>
+                                        <field name="imprint_height_uom"/>
+                                        <field name="imprint_colors"/>
+                                        <field name="imprint_cmyk"/>
+                                        <field name="printable_color_id"/>
+                                        <button name="action_download_imprint"
+                                                type="object"
+                                                string="Download PNG"
+                                                icon="fa-download"
+                                                invisible="not imprint_image"/>
+                                        <button name="action_download_imprint_svg"
+                                                type="object"
+                                                string="Download SVG"
+                                                icon="fa-download"/>
+                                    </list>
+                                    <form string="Imprint Design">
+                                        <header>
+                                            <button name="action_download_imprint"
+                                                    type="object"
+                                                    string="Download PNG"
+                                                    invisible="not imprint_image"/>
+                                            <button name="action_download_imprint_svg"
+                                                    type="object"
+                                                    string="Download SVG"
+                                                    class="btn-primary"/>
+                                        </header>
+                                        <group>
+                                            <group>
+                                                <field name="imprint_image" widget="image"/>
+                                                <field name="imprint_design_attribute" invisible="1"/>
+                                                <field name="imprint_design_display" widget="text" readonly="1"/>
+                                                <field name="tus_finish_effect"/>
+                                                <field name="tus_foil_metal"
+                                               invisible="tus_finish_effect not in ('foil', 'foil_emboss')"/>
+                                                <field name="tus_relief_mm"/>
+                                                <field name="tus_varnish_type"/>
+                                                <field name="imprint_width"/>
+                                                <field name="imprint_width_uom"/>
+                                            </group>
+                                            <group>
+                                                <field name="imprint_height"/>
+                                                <field name="imprint_height_uom"/>
+                                                <field name="imprint_colors"/>
+                                                <field name="imprint_cmyk"/>
+                                                <field name="printable_color_id"/>
+                                            </group>
+                                        </group>
+                                    </form>
+                                </field>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="action_upload_design" model="ir.actions.act_window">
+            <field name="name">Upload Design</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">orderline.design.upload</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create a new record!
+                </p>
+            </field>
+        </record>
+
+        <menuitem
+            id="upload_design_menu"
+            name="Upload Design"
+            parent="sale.menu_sale_config"
+            action="action_upload_design"
+            sequence="30"
+        />
+    </data>
+</odoo>

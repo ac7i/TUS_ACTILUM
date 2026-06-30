@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <record id="view_order_form" model="ir.ui.view">
+        <field name="name">sale.order.form.tagsen</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form" />
+        <field name="arch" type="xml">
+            <xpath
+                expr="//notebook/page[@name='order_lines']/field/list/field[@name='product_template_id']"
+                position="after"
+            >
+                <field name="printing_method_id" widget="many2one" options="{'no_create': True}"/>
+                <field name="uploaded_design_ids" column_invisible="1" />
+                <field name="is_personalizer_configured" column_invisible="1" />
+                <field name="vdp_enabled" column_invisible="1" />
+                <field name="vdp_record_count" column_invisible="1" />
+                <field name="empty_canvas_width" column_invisible="1" />
+                <field name="empty_canvas_height" column_invisible="1" />
+                <field name="empty_canvas_unit" column_invisible="1" />
+                <field name="empty_canvas_sides" column_invisible="1" />
+                <button
+                    name="view_uploaded_design"
+                    type="object"
+                    string="View Design"
+                    class="oe_highlight"
+                    invisible="not uploaded_design_ids or not is_personalizer_configured"
+                />
+                <button
+                    name="create_design"
+                    type="object"
+                    string="Create Design"
+                    class="oe_highlight"
+                    invisible="uploaded_design_ids or not is_personalizer_configured"
+                />
+                <button
+                    name="view_vdp_records"
+                    type="object"
+                    string="VDP Rows"
+                    class="btn-secondary"
+                    invisible="not vdp_enabled"
+                />
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

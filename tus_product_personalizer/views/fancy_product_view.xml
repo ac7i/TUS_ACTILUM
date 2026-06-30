@@ -1,0 +1,2142 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <template id="product_design_customize" name="Product Design Customize">
+        <t t-call="website.layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <t t-if="personalizer_config.get('font_google_url')">
+                <link rel="stylesheet" t-att-href="personalizer_config['font_google_url']"/>
+            </t>
+            <t t-if="share_record">
+                <meta property="og:title" t-att-content="product.name"/>
+                <meta property="og:description" content="Check out this custom product design"/>
+                <meta property="og:type" content="website"/>
+                <meta property="og:image" t-attf-content="{{ request.httprequest.url_root }}product/designer/share/{{ share_token }}/preview"/>
+                <meta property="og:url" t-attf-content="{{ request.httprequest.url_root }}product/designer/share/{{ share_token }}"/>
+            </t>
+            <div class="fabric_container tus-personalizer tus-ref-layout">
+                <style>
+                    /* Designer theme (Website → Settings → Product Personalizer → Designer Appearance) */
+                    .fabric_container.tus-personalizer.tus-ref-layout {
+                        --tus-brand-1: <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/>;
+                        --tus-brand-2: <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/>;
+                        --tus-cta-1: <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/>;
+                        --tus-cta-2: <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/>;
+                        --tus-theme-accent-hover: <t t-esc="personalizer_config.get('button_hover_color') or '#3d4030'"/>;
+                        --tus-button-text: <t t-esc="personalizer_config.get('button_text_color') or '#ffffff'"/>;
+                        --tus-text: <t t-esc="personalizer_config.get('text_color') or '#111827'"/>;
+                        --tus-text-muted: color-mix(in srgb, <t t-esc="personalizer_config.get('text_color') or '#111827'"/> 55%, white);
+                        --tus-brand-soft: color-mix(in srgb, <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/> 14%, white);
+                        --tus-ref-accent-soft: var(--tus-brand-soft);
+                        --tus-gradient-brand: linear-gradient(135deg, <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/> 0%, <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/> 100%);
+                        --tus-gradient-cta: var(--tus-gradient-brand);
+                        --fab-primary-color: <t t-esc="personalizer_config.get('button_color') or '#4d5038'"/>;
+                        --tus-font-family: <t t-esc="personalizer_config.get('font_family_css') or '-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, sans-serif'"/>;
+                        font-family: var(--tus-font-family);
+                        color: var(--tus-text);
+                    }
+                    /* Critical shell: footer must span bottom row (not a right column) */
+                    .fabric_container.tus-ref-layout .editor_view {
+                        display: grid !important;
+                        grid-template-rows: auto 52px minmax(0, 1fr) 64px;
+                        grid-template-areas: "tus-share-status" "tus-header" "tus-body" "tus-footer";
+                        height: 100dvh;
+                        overflow: hidden;
+                    }
+                    .fabric_container.tus-ref-layout .editor_view > .tus-share-save-status { grid-area: tus-share-status; }
+                    .fabric_container.tus-ref-layout .editor_view > .tus-share-save-status.d-none {
+                        display: none !important;
+                    }
+                    .fabric_container.tus-ref-layout .editor_view > .action_bar { grid-area: tus-header; }
+                    .fabric_container.tus-ref-layout .editor_view > .tus-designer-body {
+                        grid-area: tus-body;
+                        display: flex;
+                        flex-direction: row;
+                        min-height: 0;
+                        overflow: hidden;
+                    }
+                    .fabric_container.tus-ref-layout .editor_view > footer.tus-designer-footer {
+                        grid-area: tus-footer;
+                        width: 100%;
+                    }
+                    @media (max-width: 1024px) {
+                        .fabric_container.tus-ref-layout .editor_view {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            grid-template-rows: unset !important;
+                            grid-template-areas: unset !important;
+                        }
+                        .fabric_container.tus-ref-layout .editor_view > .tus-designer-body {
+                            flex-direction: column !important;
+                        }
+                    }
+                </style>
+                <div class="editor_view">
+                    <input name="product_tmpl_id" t-att-value="product_tmpl_id" type="hidden" />
+                    <input t-if="share_token" name="share_token" t-att-value="share_token" type="hidden"/>
+                    <input t-if="share_record" name="share_mode" t-att-value="resolved_share_mode" type="hidden"/>
+                    <input t-if="share_record" name="share_is_owner" t-att-value="share_is_owner and '1' or '0'" type="hidden"/>
+                    <input t-if="share_record" name="share_can_write" t-att-value="share_can_write and '1' or '0'" type="hidden"/>
+                    <input t-if="share_record and share_guest_acc" name="share_guest_acc" t-att-value="share_guest_acc" type="hidden"/>
+                    <input t-if="share_record" name="share_bundle_version" t-att-value="share_bundle_version or 1" type="hidden"/>
+                    <input t-if="share_record" name="share_last_saved_by" t-att-value="share_last_saved_by or ''" type="hidden"/>
+                    <input t-if="share_record" name="share_last_saved_at" t-att-value="share_last_saved_at or ''" type="hidden"/>
+                    <input name="default_product_template_id" t-att-value="default_product_template_id or 0" type="hidden" />
+                    <input name="personalizer_config" type="hidden"
+                           t-att-value="personalizer_config_json or '{}'" />
+                    <input name="show_matrix_table" type="hidden" t-att-value="show_matrix_table and '1' or '0'"/>
+                    <input name="show_vdp" type="hidden" t-att-value="show_vdp and '1' or '0'"/>
+                    <input name="show_design_price" type="hidden" t-att-value="show_design_price and '1' or '0'"/>
+                    <input name="show_printing_methods" type="hidden" t-att-value="show_printing_methods and '1' or '0'"/>
+                    <t t-if="from_backend">
+                        <input name="sale_order_line_id" t-att-value="sale_order_line.id" type="hidden" />
+                        <input name="order_id" t-att-value="sale_order_line.order_id.id" type="hidden" />
+                    </t>
+                    <input name="product_id" t-att-value="product.id" type="hidden" />
+                    <input name="current_color_id" t-att-value="current_color_id" type="hidden" />
+                    <input type="hidden" name="empty_canvas_mode" t-att-value="empty_canvas_mode and '1' or '0'"/>
+                    <input type="hidden" name="empty_canvas_error" t-att-value="empty_canvas_error or ''"/>
+                    <input type="hidden" name="empty_canvas_width" t-att-value="empty_canvas_width or ''"/>
+                    <input type="hidden" name="empty_canvas_height" t-att-value="empty_canvas_height or ''"/>
+                    <input type="hidden" name="empty_canvas_unit" t-att-value="empty_canvas_unit or ''"/>
+                    <input type="hidden" name="empty_canvas_sides" t-att-value="empty_canvas_sides or 'front'"/>
+                    <input type="hidden" name="empty_canvas_preset_id" t-att-value="empty_canvas_preset_id or ''"/>
+                    <input type="hidden" name="empty_canvas_enable_design_templates"
+                           t-att-value="empty_canvas_enable_design_templates and '1' or '0'"/>
+                    <input type="hidden" name="size_width" id="customWidth" t-att-value="custom_width" />
+                    <input type="hidden" name="size_height" id="customHeight" t-att-value="custom_height" />
+                    <div class="fab_loader_wrapper">
+                        <div class="fab-loader">
+                            <t t-call="tus_product_personalizer.product_loader_markup"/>
+                            <span class="fab-loader-text">Preparing your design studio…</span>
+                        </div>
+                    </div>
+                    <div t-if="not share_token or share_is_owner" id="custom-cart-sidebar" class="custom-cart-sidebar">
+                        <!-- Header -->
+                        <div class="cart-header">
+                            <div class="cart-title">
+                                <i class="fa fa-shopping-cart me-2"></i>
+                                Cart
+                            </div>
+                            <button type="button" class="close-cart">&amp;times;</button>
+                        </div>
+
+                        <!-- Cart Items (dynamic) -->
+                        <div class="cart-items"></div>
+
+                        <!-- Footer -->
+                        <div class="cart-footer">
+                            <div class="note-row d-flex justify-content-between">
+                                <span class="total-qty text-muted">Total Quantity (0)</span>
+                            </div>
+                            <div t-if="show_design_price or show_printing_methods" class="price-breakdown small text-muted px-2 mb-2" style="border-top: 1px solid #eee; padding-top: 8px;">
+                                <div class="d-flex justify-content-between items-total-row d-none">
+                                    <span>Items Total:</span>
+                                    <span class="items-total-price">0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between design-total-row d-none">
+                                    <span>Design Total:</span>
+                                    <span class="design-total-price">0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between printing-row d-none">
+                                    <span class="printing-label">Printing:</span>
+                                    <span class="printing-total-price">0.00</span>
+                                </div>
+                            </div>
+                            <div class="checkout-row" style="border-top: 1px solid #ddd; padding-top: 10px;">
+                                <span class="total-price fw-bold" t-att-data-currency="request.website.currency_id.symbol">
+                                    <t t-esc="request.website.currency_id.symbol"/>0.00
+                                </span>
+                                <button class="btn-buy">Buy Now</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Matrix Split View Container -->
+                    <div id="tus-matrix-split-view" class="tus-matrix-split-view d-none">
+                        <div class="tus-matrix-split-header">
+                            <h5 class="mb-0">Add Quantities by Color</h5>
+                            <button type="button" class="btn btn-sm btn-link tus-matrix-cancel" style="padding: 0; color: #6c757d;">
+                                <i class="fa fa-times fa-lg"></i>
+                            </button>
+                        </div>
+                        <div class="tus-matrix-split-body">
+                            <!-- Left Side: Canvas Preview -->
+                            <div class="tus-matrix-canvas-preview">
+                                <div class="tus-matrix-preview-container">
+                                    <div class="tus-matrix-preview-loading text-center py-5 d-none">
+                                        <i class="fa fa-spinner fa-spin fa-2x text-muted"></i>
+                                        <p class="text-muted mt-2">Loading preview...</p>
+                                    </div>
+                                    <div class="tus-matrix-preview-image-wrapper text-center">
+                                        <img id="tus-matrix-preview-image" class="tus-matrix-preview-image shadow-sm border rounded bg-white" src="" alt="Design Preview" style="max-width: 100%; height: auto;"/>
+                                        <div class="mt-3 text-muted small">
+                                            <i class="fa fa-info-circle me-1"></i>
+                                            Your design will be applied to all selected variants.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Right Side: Matrix Table -->
+                            <div class="tus-matrix-table-section">
+                                <div class="tus-matrix-loading text-center text-muted py-5">
+                                    <i class="fa fa-spinner fa-spin me-2"></i>
+                                    Loading matrix...
+                                </div>
+                                <div class="tus-matrix-container d-none"></div>
+                            </div>
+                        </div>
+                        <div class="tus-matrix-split-footer d-flex justify-content-center">
+                            <div class="d-flex align-items-center gap-3 tus-matrix-footer-totals">
+                                <strong class="tus-matrix-total h3 mb-0 text-primary">0.00</strong>
+                                <button class="btn btn-link tus-matrix-cancel text-muted">Cancel</button>
+                                <button t-if="not share_token or share_is_owner" class="btn btn-primary tus-matrix-apply px-4">
+                                    <i class="fa fa-check me-1"></i>
+                                    Add to Cart
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div t-if="share_token" class="tus-share-save-status small text-muted w-100 d-none"/>
+                    <div class="action_bar tus-topbar tus-designer-header">
+                        <div class="tus-header-shell d-flex w-100">
+                            <div class="tus-header-left">
+                                <button type="button" class="tus-btn-icon tus-back-btn" title="Back" aria-label="Back">
+                                    <i class="fa fa-arrow-left"/>
+                                </button>
+                                <button type="button" class="tus-btn-icon tus-header-info-btn" id="tus-product-info-btn" title="Product info" aria-label="Product info">
+                                    <i class="fa fa-info-circle"/>
+                                </button>
+                            </div>
+                            <div class="tus-header-center">
+                                <div class="history_manage tus-header-history">
+                                    <div class="undo_btn disabled">
+                                        <img src="/tus_product_personalizer/static/src/data/img/undo.svg" class="history_btn" alt="Undo"/>
+                                    </div>
+                                    <div class="redo_btn disabled">
+                                        <img src="/tus_product_personalizer/static/src/data/img/redo.svg" class="history_btn" alt="Redo"/>
+                                    </div>
+                                </div>
+                                <div class="tus-product-badge d-none d-lg-flex" t-if="product">
+                                    <span class="tus-product-badge-name" t-esc="product.display_name"/>
+                                </div>
+                            </div>
+                            <div class="tus-header-right">
+                                <div class="tus-header-desktop-actions d-none d-lg-flex align-items-center">
+                                    <div class="tus-mode-toggle" role="group" aria-label="Editor mode">
+                                        <button type="button" class="tus-mode-btn active" data-mode="edit">Edit</button>
+                                        <button t-if="personalizer_config.get('show_3d_preview')"
+                                                type="button"
+                                                class="tus-mode-btn"
+                                                data-mode="3d-preview">3D Preview</button>
+                                        <button t-elif="personalizer_config.get('enable_preview', True)"
+                                                type="button"
+                                                class="tus-mode-btn"
+                                                data-mode="preview">Preview</button>
+                                    </div>
+                                    <button type="button" class="tus-btn-icon tus-fullscreen-btn" title="Fullscreen" aria-label="Fullscreen">
+                                        <i class="fa fa-expand"/>
+                                    </button>
+                                    <div class="tus-header-utilities d-flex align-items-center">
+                                        <div t-if="share_token and share_can_write"
+                                             class="share_save_btn tus-btn-icon d-flex align-items-center justify-content-center cursor-pointer"
+                                             title="Save shared design"
+                                             aria-label="Save shared design">
+                                            <img src="/tus_product_personalizer/static/src/data/img/save_icon.svg" width="18" height="18" alt=""/>
+                                        </div>
+                                        <div t-elif="personalizer_config.get('enable_templates', True) and not share_token"
+                                             class="add_to_save tus-btn-icon d-flex align-items-center justify-content-center cursor-pointer"
+                                             title="Save template"
+                                             aria-label="Save template">
+                                            <img src="/tus_product_personalizer/static/src/data/img/save_icon.svg" width="18" height="18" alt=""/>
+                                        </div>
+                                        <div t-if="personalizer_config.get('enable_download', True)" class="download_btn tus-btn-icon d-flex align-items-center justify-content-center cursor-pointer" title="Download" aria-label="Download">
+                                            <img src="/tus_product_personalizer/static/src/data/img/download_icon.svg" width="18" height="18" alt=""/>
+                                        </div>
+                                        <div t-if="personalizer_config.get('enable_share', True) and (not share_token or share_is_owner)" class="position-relative tus-share-wrapper">
+                                            <div class="share_btn tus-btn-icon d-flex align-items-center justify-content-center cursor-pointer" title="Share" aria-label="Share">
+                                                <i class="fa fa-share-alt"/>
+                                            </div>
+                                            <!-- Canva-Style Share Popover -->
+                                            <div class="tus-share-popover d-none" role="dialog" aria-label="Share design">
+                                                <!-- Mobile Backdrop -->
+                                                <div class="tus-share-backdrop d-lg-none"></div>
+                                                <div class="tus-share-popover-content">
+                                                    <div class="tus-share-popover-header">
+                                                        <span class="tus-share-popover-title">Share design</span>
+                                                        <button type="button" class="tus-share-popover-close-btn" aria-label="Close">
+                                                            <i class="fa fa-times"/>
+                                                        </button>
+                                                    </div>
+                                                     <div class="tus-share-popover-body">
+                                                         <div class="tus-share-popover-section mb-3">
+                                                             <label class="tus-share-label">People with access</label>
+                                                             
+                                                             <!-- Add Email group -->
+                                                             <div class="tus-share-email-group d-flex align-items-center gap-1 mb-2">
+                                                                 <input type="email" id="tus-share-email-input" class="form-control form-control-sm tus-share-email-input" placeholder="Add email address..."/>
+                                                                 <select id="tus-share-email-mode" class="form-select form-select-sm tus-share-email-mode-select">
+                                                                     <option value="edit" selected="selected">Can customize</option>
+                                                                     <option value="view">Can view only</option>
+                                                                 </select>
+                                                                 <button type="button" id="tus-share-add-btn" class="btn btn-sm btn-light border tus-share-add-btn d-flex align-items-center justify-content-center" title="Add access">
+                                                                     <i class="fa fa-plus-circle text-primary"/>
+                                                                 </button>
+                                                             </div>
+
+                                                             <div id="tus-share-people-list" class="tus-share-people-list">
+                                                                 <!-- Owner and guest entries will be populated dynamically -->
+                                                             </div>
+                                                             <p id="tus-share-owner-hint" class="tus-share-owner-hint d-none">
+                                                                 Only the owner can add people. Collaborators with edit access can save to this link using the Save button. Refresh the page to see others' changes.
+                                                             </p>
+                                                         </div>
+
+                                                         <div class="tus-share-popover-divider"/>
+
+                                                         <!-- Link sharing restriction section -->
+                                                         <div class="tus-share-popover-section mt-3 mb-3">
+                                                             <label class="tus-share-label">Link access</label>
+                                                             <div class="tus-share-access-row d-flex align-items-center">
+                                                                 <div class="tus-share-access-icon me-2 d-flex align-items-center justify-content-center" id="tus-share-restriction-icon">
+                                                                     <i class="fa fa-globe"/>
+                                                                 </div>
+                                                                 <div class="tus-share-access-info flex-grow-1 min-w-0">
+                                                                     <div class="tus-share-access-selects d-flex align-items-center justify-content-between gap-2">
+                                                                         <select id="tus-share-restriction-select" class="form-select form-select-sm tus-share-inline-select tus-share-restriction-select">
+                                                                             <option value="anyone" selected="selected">Anyone with the link</option>
+                                                                             <option value="restricted">Only people added</option>
+                                                                         </select>
+                                                                         <select id="tus-share-access-select" class="form-select form-select-sm tus-share-inline-select tus-share-link-mode-select">
+                                                                             <option value="edit" selected="selected">Can customize</option>
+                                                                             <option value="view">Can view only</option>
+                                                                         </select>
+                                                                     </div>
+                                                                     <div class="tus-share-restriction-hint text-muted" id="tus-share-restriction-hint">Anyone with this link can access.</div>
+                                                                 </div>
+                                                             </div>
+                                                         </div>
+                                                        
+                                                        <div class="tus-share-popover-section mt-3">
+                                                            <div class="input-group input-group-sm mb-3">
+                                                                <input type="text" class="form-control form-control-sm" id="tus-share-popover-url" readonly="readonly" placeholder="Link will appear here..."/>
+                                                            </div>
+                                                            <button type="button" class="btn w-100 tus-share-popover-copy-btn" id="tus-share-popover-copy-btn">
+                                                                <i class="fa fa-link me-1"/> Copy link
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        <div class="tus-share-popover-divider"></div>
+
+                                                        <label class="tus-share-label mb-2">Share via</label>
+                                                        <div class="tus-share-popover-grid">
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="whatsapp" title="WhatsApp">
+                                                                <div class="tus-share-grid-icon tus-share-icon-whatsapp">
+                                                                    <i class="fa fa-whatsapp"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">WhatsApp</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="facebook" title="Facebook">
+                                                                <div class="tus-share-grid-icon tus-share-icon-facebook">
+                                                                    <i class="fa fa-facebook"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">Facebook</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="instagram" title="Instagram">
+                                                                <div class="tus-share-grid-icon tus-share-icon-instagram">
+                                                                    <i class="fa fa-instagram"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">Instagram</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="twitter" title="X">
+                                                                <div class="tus-share-grid-icon tus-share-icon-twitter">
+                                                                    <i class="fa fa-twitter"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">X</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="linkedin" title="LinkedIn">
+                                                                <div class="tus-share-grid-icon tus-share-icon-linkedin">
+                                                                    <i class="fa fa-linkedin"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">LinkedIn</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="telegram" title="Telegram">
+                                                                <div class="tus-share-grid-icon tus-share-icon-telegram">
+                                                                    <i class="fa fa-paper-plane"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">Telegram</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="email" title="Email">
+                                                                <div class="tus-share-grid-icon tus-share-icon-email">
+                                                                    <i class="fa fa-envelope"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">Email</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item d-none" data-share-channel="native" id="tus-share-popover-native-btn" title="More apps">
+                                                                <div class="tus-share-grid-icon tus-share-icon-native">
+                                                                    <i class="fa fa-share-alt"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">More</span>
+                                                            </div>
+                                                            <div class="tus-share-popover-grid-item" data-share-channel="download" title="Download design">
+                                                                <div class="tus-share-grid-icon tus-share-icon-download">
+                                                                    <i class="fa fa-download"/>
+                                                                </div>
+                                                                <span class="tus-share-grid-label">Download</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button t-if="not share_token or share_is_owner"
+                                        type="button"
+                                        class="tus-btn-icon tus-header-cart-btn d-lg-none disabled"
+                                        title="Add to cart"
+                                        aria-label="Add to cart"
+                                        disabled="disabled">
+                                    <i class="fa fa-shopping-cart"/>
+                                </button>
+                                <div class="tus-header-menu d-lg-none">
+                                    <button type="button"
+                                            class="tus-btn-icon tus-header-menu-btn"
+                                            aria-label="Open menu"
+                                            aria-expanded="false"
+                                            aria-haspopup="true">
+                                        <i class="fa fa-bars"/>
+                                    </button>
+                                    <div class="tus-header-menu-panel d-none" role="menu">
+                                        <button type="button"
+                                                class="tus-header-menu-item tus-mode-btn active"
+                                                data-mode="edit"
+                                                role="menuitem">
+                                            <i class="fa fa-pencil me-2"/>Edit
+                                        </button>
+                                        <button t-if="personalizer_config.get('show_3d_preview')"
+                                                type="button"
+                                                class="tus-header-menu-item tus-mode-btn"
+                                                data-mode="3d-preview"
+                                                role="menuitem">
+                                            <i class="fa fa-cube me-2"/>3D Preview
+                                        </button>
+                                        <button t-elif="personalizer_config.get('enable_preview', True)"
+                                                type="button"
+                                                class="tus-header-menu-item tus-mode-btn"
+                                                data-mode="preview"
+                                                role="menuitem">
+                                            <i class="fa fa-eye me-2"/>Preview
+                                        </button>
+                                        <button t-if="share_token and share_can_write"
+                                                type="button"
+                                                class="tus-header-menu-item tus-menu-share-save"
+                                                role="menuitem">
+                                            <i class="fa fa-floppy-o me-2"/>Save shared design
+                                        </button>
+                                        <button t-elif="personalizer_config.get('enable_templates', True) and not share_token"
+                                                type="button"
+                                                class="tus-header-menu-item tus-menu-save-template"
+                                                role="menuitem">
+                                            <i class="fa fa-floppy-o me-2"/>Save template
+                                        </button>
+                                        <button t-if="personalizer_config.get('enable_download', True)"
+                                                type="button"
+                                                class="tus-header-menu-item tus-menu-download"
+                                                role="menuitem">
+                                            <i class="fa fa-download me-2"/>Download
+                                        </button>
+                                        <button t-if="personalizer_config.get('enable_share', True) and (not share_token or share_is_owner)"
+                                                type="button"
+                                                class="tus-header-menu-item tus-menu-share"
+                                                role="menuitem">
+                                            <i class="fa fa-share-alt me-2"/>Share
+                                        </button>
+                                        <button t-if="not share_token or share_is_owner"
+                                                type="button"
+                                                class="tus-header-menu-item tus-menu-save-product"
+                                                role="menuitem">
+                                            <i class="fa fa-check me-2"/>Save product
+                                        </button>
+                                        <button type="button" class="tus-header-menu-item tus-menu-exit" role="menuitem">
+                                            <i class="fa fa-sign-out me-2"/>Exit
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tus-designer-body">
+                    <div class="sidebar">
+                        <div class="new_toolbar_container d-none">
+                            <script type="module" src="https://unpkg.com/vanilla-colorful?module"></script>
+                            <!-- Top Controls -->
+                            <div class="toolbar-header">
+                                <div class="close-sub-panel" style="cursor:pointer;">
+                                    <span class="icon-back"></span>
+                                    <i class="fa fa-long-arrow-left"><span class="px-2">Back</span></i>
+                                </div>
+                                <div class="close">
+                                    <span class="icon-close"></span>
+                                </div>
+                            </div>
+
+                            <div class="tools-wrapper">
+
+                                <!-- Sidebar -->
+                                <div class="tools-nav">
+                                    <div class="tool active color-tool d-none" data-panel="color">
+                                        <span class="icon color-icon"></span>
+                                        <span class="label">Color</span>
+                                    </div>
+                                    <div class="tool text_options d-none" data-panel="edit">
+                                        <img src="/tus_product_personalizer/static/src/data/img/edit_text.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Edit Text</span>
+                                    </div>
+                                    <div class="tool text_options d-none" data-panel="size">
+                                        <img src="/tus_product_personalizer/static/src/data/img/spacing.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Size &amp; Spacing</span>
+                                    </div>
+                                    <div class="tool text_options d-none" data-panel="fonts">
+                                        <img src="/tus_product_personalizer/static/src/data/img/fonts.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Font</span>
+                                    </div>
+                                    <div class="tool text_options d-none" data-panel="format">
+                                        <img src="/tus_product_personalizer/static/src/data/img/format.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Format</span>
+                                    </div>
+                                    <div class="tool d-none curved_text_tool" data-panel="curved">
+                                        <img src="/tus_product_personalizer/static/src/data/img/curve_text.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Curved Text</span>
+                                    </div>
+                                    <div t-if="show_vdp" class="tool d-none vdp_text_tool" data-panel="vdp">
+                                        <i class="fa fa-table fa-lg curved-icon" style="color:#4d5038;margin-bottom:5px;"/>
+                                        <span class="label mt-2">Variable</span>
+                                    </div>
+
+                                    <div class="tool effects-tool image_options d-none" data-panel="effects">
+                                        <img src="/tus_product_personalizer/static/src/data/img/effects.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Effects</span>
+                                    </div>
+                                    <div class="tool finish-tool d-none" data-panel="finish">
+                                        <i class="fa fa-cube fa-lg curved-icon" style="color:#4d5038;margin-bottom:5px;"/>
+                                        <span class="label mt-2">Print Finish</span>
+                                    </div>
+                                    <div class="tool remove-bg-tool image_options d-none" data-panel="remove_bg">
+                                        <i class="fa fa-magic fa-lg curved-icon" style="color:#4d5038;margin-bottom:5px;"/>
+                                        <span class="label mt-2">Remove BG</span>
+                                    </div>
+                                    <div class="tool vectorize-tool image_options d-none" data-panel="vectorize">
+                                        <i class="fa fa-object-group fa-lg curved-icon" style="color:#4d5038;margin-bottom:5px;"/>
+                                        <span class="label mt-2">Vectorize</span>
+                                    </div>
+                                    <div class="tool replace-image image_options d-none" data-panel="replace">
+                                        <img src="/tus_product_personalizer/static/src/data/img/image_replace.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Replace Image</span>
+                                    </div>
+                                    <div class="tool transform-tool" data-panel="transform">
+                                        <img src="/tus_product_personalizer/static/src/data/img/rotate_tool.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Rotate</span>
+                                    </div>
+                                    <div class="tool" data-panel="flip">
+                                        <img src="/tus_product_personalizer/static/src/data/img/flip_tool.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Flip</span>
+                                    </div>
+                                    <div class="tool" data-panel="opacity">
+                                        <img src="/tus_product_personalizer/static/src/data/img/opacity.svg" width="30" height="30" class="curved-icon"/>
+                                            <span class="label">Opacity</span>
+                                        </div>
+                                    <div class="tool duplicate_element" data-panel="duplicate">
+                                        <img src="/tus_product_personalizer/static/src/data/img/duplicate.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Duplicate</span>
+                                    </div>
+                                    <div class="tool elem_remove" data-panel="remove">
+                                        <img src="/tus_product_personalizer/static/src/data/img/remove.svg" width="30" height="30" class="curved-icon"/>
+                                        <span class="label mt-2">Remove</span>
+                                    </div>
+                                </div>
+
+                                <!-- Right Panel -->
+                                <div class="panel">
+                                    <div class="section_tools_options section_tool_color active">
+                                        <ul class="nav" role="tablist">
+                                            <li class="nav-item">
+                                                <a class="nav-link active text-muted" data-bs-toggle="tab" href="#fill" role="tab">
+                                                    Fill
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link text-muted" data-bs-toggle="tab" href="#stroke" role="tab">
+                                                    Stroke
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link text-muted" data-bs-toggle="tab" href="#shadow" role="tab">
+                                                    Shadow
+                                                </a>
+                                            </li>
+                                        </ul>
+
+                                        <div class="tab-content">
+                                            <div id="fill" class="tab-pane fade show active mt-3" role="tabpanel">
+                                                <div class="o_color_picker">
+                                                    <hex-color-picker id="colorPicker"></hex-color-picker>
+                                                    <div class="color-input-wrapper justify-content-between">
+                                                        <input id="colorInput" type="text" class="hex-input form-control" placeholder="#000000"></input>
+                                                        <button type="button" class="color-chooser-btn" >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                                                <path fill="white"
+                                                                      d="M19.71 4.29a1 1 0 0 0-1.42 0l-1.34 1.34-2.29-2.29 1.34-1.34a1 1 0 0 0-1.42-1.42L14.29 2.9 11.29 5.9l2.82 2.82-8.47 8.47a1 1 0 0 0-.25.44l-1 4a1 1 0 0 0 1.21 1.21l4-1a1 1 0 0 0 .44-.25l8.47-8.47 2.82 2.82 3-3a1 1 0 0 0 0-1.42Z"/>
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                    <div id="tusCmykReadout" class="tus-cmyk-readout small text-muted mt-2" style="display: none;"/>
+                                                    <!-- Fixed color section -->
+                                                    <div class="color-palette">
+                                                        <t t-set="colors" t-value="request.env['editor.color.palette'].search([])"/>
+                                                        <t t-if="colors">
+                                                            <t t-foreach="colors" t-as="color">
+                                                                <div class="color-swatch"
+                                                                     t-att-data-color="color.color_code"
+                                                                     t-att-data-cmyk="color.cmyk_display"
+                                                                     t-att-title="color.cmyk_display"
+                                                                     t-attf-style="background-color: #{color.color_code or '#cccccc'}"></div>
+                                                            </t>
+                                                        </t>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div id="stroke" class="tab-pane fade mt-3" role="tabpanel">
+                                                <div class="stroke-color-section">
+                                                    <div class="o_stroke_color_picker">
+                                                        <hex-color-picker id="strokeColorPicker"></hex-color-picker>
+                                                        <div class="color-input-wrapper justify-content-between">
+                                                            <input id="strokeColorInput" type="text"
+                                                                   class="hex-input form-control"
+                                                                   placeholder="#000000"/>
+                                                            <button type="button" class="stroke-color-chooser-btn">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                                                    <path fill="white"
+                                                                          d="M19.71 4.29a1 1 0 0 0-1.42 0l-1.34 1.34-2.29-2.29 1.34-1.34a1 1 0 0 0-1.42-1.42L14.29 2.9 11.29 5.9l2.82 2.82-8.47 8.47a1 1 0 0 0-.25.44l-1 4a1 1 0 0 0 1.21 1.21l4-1a1 1 0 0 0 .44-.25l8.47-8.47 2.82 2.82 3-3a1 1 0 0 0 0-1.42Z"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                        <!-- Stroke Color Palette -->
+                                                        <div class="stroke-color-palette">
+                                                            <t t-set="colors"
+                                                               t-value="request.env['editor.color.palette'].search([])"/>
+                                                            <t t-if="colors">
+                                                                <t t-foreach="colors" t-as="color">
+                                                                    <div class="stroke-color-swatch"
+                                                                         t-att-data-color="color.color_code"
+                                                                         t-att-data-cmyk="color.cmyk_display"
+                                                                         t-att-title="color.cmyk_display"
+                                                                         t-attf-style="background-color: #{color.color_code or '#cccccc'}"></div>
+                                                                </t>
+                                                            </t>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="control mt-3">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <label class="me-2">Stroke</label>
+                                                            <input type="number" value="2" min="0" max="50" step="1" class="border p-2 text-center elem_stroke"/>
+                                                        </div>
+                                                        <input type="range" value="2" min="0" max="50" step="1"
+                                                               class="elem_stroke_progress elem_stroke stroke_width mt-2 w-100"/>
+                                                    </div>
+                                            </div>
+
+                                            <div id="shadow" class="tab-pane fade mt-3" role="tabpanel">
+                                                <div class="o_shadow_color_picker">
+                                                    <hex-color-picker id="shadowColorPicker"></hex-color-picker>
+                                                    <div class="color-input-wrapper justify-content-between">
+                                                        <input id="shadowColorInput" type="text"
+                                                               class="hex-input form-control elem_shadow shadow_color"
+                                                               placeholder="#000000" value="#000000"/>
+                                                        <button type="button" class="shadow-color-chooser-btn">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                                                <path fill="white"
+                                                                      d="M19.71 4.29a1 1 0 0 0-1.42 0l-1.34 1.34-2.29-2.29 1.34-1.34a1 1 0 0 0-1.42-1.42L14.29 2.9 11.29 5.9l2.82 2.82-8.47 8.47a1 1 0 0 0-.25.44l-1 4a1 1 0 0 0 1.21 1.21l4-1a1 1 0 0 0 .44-.25l8.47-8.47 2.82 2.82 3-3a1 1 0 0 0 0-1.42Z"/>
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                    <!-- Shadow Color Palette -->
+                                                    <div class="shadow-color-palette">
+                                                        <t t-set="colors"
+                                                           t-value="request.env['editor.color.palette'].search([])"/>
+                                                        <t t-if="colors">
+                                                            <t t-foreach="colors" t-as="color">
+                                                                <div class="shadow-color-swatch"
+                                                                     t-att-data-color="color.color_code"
+                                                                     t-att-data-cmyk="color.cmyk_display"
+                                                                     t-att-title="color.cmyk_display"
+                                                                     t-attf-style="background-color: #{color.color_code or '#cccccc'}"></div>
+                                                            </t>
+                                                        </t>
+                                                    </div>
+                                                </div>
+                                                <div class="controls pt-3" style="height:auto;overflow-y:auto;">
+                                                    <div class="control py-2">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div class="d-flex flex-column flex-grow-1">
+                                                                <label>Offset X</label>
+                                                                <input type="range"
+                                                                       value="5" min="-50" max="50" step="1"
+                                                                       class="elem_shadow shadow_x_progress shadow_x mt-1"
+                                                                />
+                                                            </div>
+                                                            <input type="number"
+                                                                   value="5" min="-50" max="50" step="1"
+                                                                   class="border p-2 text-center elem_shadow shadow_x"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Y Offset -->
+                                                    <div class="control py-2">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div class="d-flex flex-column flex-grow-1">
+                                                                <label>Offset Y</label>
+                                                                <input type="range" value="5" min="-50" max="50" step="1"
+                                                                       class="elem_shadow shadow_y_progress shadow_y mt-1"/>
+                                                            </div>
+                                                            <input type="number" value="5" min="-50" max="50" step="1"
+                                                                   class="border p-2 text-center elem_shadow shadow_y"/>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Blur -->
+                                                    <div class="control py-2">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div class="d-flex flex-column flex-grow-1">
+                                                                <label>Blur</label>
+                                                                <input type="range" value="10" min="0" max="100" step="1"
+                                                                       class="blur_progress elem_shadow shadow_blur mt-1"/>
+                                                            </div>
+                                                            <input type="number" value="10" min="0" max="100" step="1"
+                                                                   class="border p-2 text-center elem_shadow shadow_blur"/>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="section_tools_options section_tool_edit">
+                                        <div t-if="show_vdp" class="tus-vdp-inline-hint alert alert-light border-0 small py-2 px-2 mb-2">
+                                            <i class="fa fa-info-circle me-1"/>
+                                            For different text per mug, open the <strong>Variable</strong> tab → set column name → <strong>Mark</strong>.
+                                        </div>
+                                        <div class="fab_edit_text">
+                                            <textarea placeholder="Enter text" class="edit_text"/>
+                                        </div>
+                                    </div>
+
+                                    <div t-if="show_vdp" class="section_tools_options section_tool_vdp">
+                                        <div class="tus-vdp-toolbar-panel p-1">
+                                            <p class="small fw-semibold mb-1">Variable data (selected text)</p>
+                                            <p class="tus-vdp-selection-hint small text-muted mb-2">Select a text layer on the canvas.</p>
+                                            <label class="form-label small mb-1">CSV column name</label>
+                                            <input type="text" class="form-control form-control-sm tus-vdp-field-key mb-2" placeholder="e.g. name"/>
+                                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                                <button type="button" class="btn btn-sm btn-primary tus-vdp-mark-btn">Mark as variable</button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger tus-vdp-unmark-btn">Remove variable</button>
+                                            </div>
+                                            <p class="small fw-semibold mb-1">Marked fields</p>
+                                            <ul class="tus-vdp-field-list list-unstyled small mb-0">
+                                                <li class="text-muted">No variable fields yet.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div class="section_tools_options section_tool_size">
+                                        <div class="panel-content">
+                                            <div class="control pb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex flex-column flex-grow-1">
+                                                        <label>Font Size</label>
+                                                        <input class="progress font_input mt-1 font-progress" type="range" min="10" max="100" value="30"/>
+                                                    </div>
+                                                    <input class="border p-2 text-center font_input font_text" name="font_size" type="number" step="1" min="1" value="10"/>
+                                                </div>
+                                            </div>
+                                            <div class="control py-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex flex-column flex-grow-1">
+                                                        <label>Line Height</label>
+                                                        <input name="lineheight" type="range" value="1" min="0" max="3" step="0.1" class="progress line-height mt-1"/>
+                                                    </div>
+                                                    <input class="border p-2 text-center linetext height-text" value="1" name="heightval" type="number" step="0.1" min="0" max="3"/>
+                                                </div>
+                                            </div>
+                                            <div class="control py-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex flex-column flex-grow-1">
+                                                        <label>Letter Spacing</label>
+                                                        <input name="letterspace" type="range" value="1" min="-0.2" max="1.5" step="0.01" class="progress letter-spacing mt-1"/>
+                                                    </div>
+                                                    <input class="border p-2 text-center linetext space-text" value="1" name="spaceval" type="number" step="0.01" min="-0.2" max="1.5"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="section_tools_options section_tool_fonts">
+                                        <div id="fontList" class="font-list-container">
+                                            <ul class="font-list">
+                                                <!-- Sans-serif fonts -->
+                                                <li data-font="Roboto" style="font-family:'Roboto';">Roboto</li>
+                                                <li data-font="Poppins" style="font-family:'Poppins';">Poppins</li>
+                                                <li data-font="Open Sans" style="font-family:'Open Sans';">Open Sans</li>
+                                                <li data-font="Lato" style="font-family:'Lato';">Lato</li>
+                                                <li data-font="Montserrat" style="font-family:'Montserrat';">Montserrat</li>
+                                                <li data-font="Nunito" style="font-family:'Nunito';">Nunito</li>
+                                                <li data-font="Source Sans Pro" style="font-family:'Source Sans Pro';">Source Sans Pro</li>
+                                                <li data-font="Inter" style="font-family:'Inter';">Inter</li>
+                                                <li data-font="Raleway" style="font-family:'Raleway';">Raleway</li>
+                                                <li data-font="Ubuntu" style="font-family:'Ubuntu';">Ubuntu</li>
+                                                <!-- Serif fonts -->
+                                                <li data-font="Playfair Display" style="font-family:'Playfair Display';">Playfair Display</li>
+                                                <li data-font="Merriweather" style="font-family:'Merriweather';">Merriweather</li>
+                                                <li data-font="Lora" style="font-family:'Lora';">Lora</li>
+                                                <li data-font="PT Serif" style="font-family:'PT Serif';">PT Serif</li>
+                                                <li data-font="Crimson Text" style="font-family:'Crimson Text';">Crimson Text</li>
+                                                <li data-font="Libre Baskerville" style="font-family:'Libre Baskerville';">Libre Baskerville</li>
+                                                <li data-font="Noto Serif" style="font-family:'Noto Serif';">Noto Serif</li>
+
+                                                <!-- Display/Decorative fonts -->
+                                                <li data-font="Lobster" style="font-family:'Lobster';">Lobster</li>
+                                                <li data-font="Pacifico" style="font-family:'Pacifico';">Pacifico</li>
+                                                <li data-font="Courgette" style="font-family:'Courgette';">Courgette</li>
+                                                <li data-font="Dancing Script" style="font-family:'Dancing Script';">Dancing Script</li>
+                                                <li data-font="Great Vibes" style="font-family:'Great Vibes';">Great Vibes</li>
+                                                <li data-font="Amatic SC" style="font-family:'Amatic SC';">Amatic SC</li>
+                                                <li data-font="Bangers" style="font-family:'Bangers';">Bangers</li>
+                                                <li data-font="Righteous" style="font-family:'Righteous';">Righteous</li>
+                                                <li data-font="Fredoka One" style="font-family:'Fredoka One';">Fredoka One</li>
+                                                <li data-font="Creepster" style="font-family:'Creepster';">Creepster</li>
+                                                <li data-font="Chewy" style="font-family:'Chewy';">Chewy</li>
+
+                                                <!-- Monospace fonts -->
+                                                <li data-font="Roboto Mono" style="font-family:'Roboto Mono';">Roboto Mono</li>
+                                                <li data-font="Inconsolata" style="font-family:'Inconsolata';">Inconsolata</li>
+                                                <li data-font="Source Code Pro" style="font-family:'Source Code Pro';">Source Code Pro</li>
+
+                                                <!-- Handwriting style -->
+                                                <li data-font="Kaushan Script" style="font-family:'Kaushan Script';">Kaushan Script</li>
+                                                <li data-font="Caveat" style="font-family:'Caveat';">Caveat</li>
+                                                <li data-font="Satisfy" style="font-family:'Satisfy';">Satisfy</li>
+                                                <li data-font="Shadows Into Light" style="font-family:'Shadows Into Light';">Shadows Into Light</li>
+                                                <li data-font="Permanent Marker" style="font-family:'Permanent Marker';">Permanent Marker</li>
+
+                                                <!-- Bold/Impact fonts -->
+                                                <li data-font="Oswald" style="font-family:'Oswald';">Oswald</li>
+                                                <li data-font="Anton" style="font-family:'Anton';">Anton</li>
+                                                <li data-font="Bebas Neue" style="font-family:'Bebas Neue';">Bebas Neue</li>
+                                                <li data-font="Titan One" style="font-family:'Titan One';">Titan One</li>
+                                                <li data-font="Alfa Slab One" style="font-family:'Alfa Slab One';">Alfa Slab One</li>
+                                                <li data-font="Fugaz One" style="font-family:'Fugaz One';">Fugaz One</li>
+
+                                                <!-- Elegant/Stylish fonts -->
+                                                <li data-font="Cinzel" style="font-family:'Cinzel';">Cinzel</li>
+                                                <li data-font="Cormorant Garamond" style="font-family:'Cormorant Garamond';">Cormorant Garamond</li>
+                                                <li data-font="Abril Fatface" style="font-family:'Abril Fatface';">Abril Fatface</li>
+                                                <li data-font="Josefin Sans" style="font-family:'Josefin Sans';">Josefin Sans</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_format">
+                                        <div class="d-flex justify-content-between flex-wrap">
+                                            <div class="d-flex align-items-center justify-content-center flex-1 font_opt font-bold border bg-grey p-2 px-3 cursor-pointer"
+                                                 data-option="fontWeight" data-value="bold">
+                                                <span>B</span>
+                                            </div>
+                                            <div class="d-flex align-items-center justify-content-center flex-1 font_opt font-italic border bg-grey p-2 px-3 cursor-pointer"
+                                                 data-option="fontStyle" data-value="italic">
+                                                <span>I</span>
+                                            </div>
+                                            <div class="d-flex align-items-center justify-content-center flex-1 font_opt font-underline border bg-grey p-2 px-3 cursor-pointer"
+                                                 data-option="underline">
+                                                <span>U</span>
+                                            </div>
+                                            <div class="d-flex align-items-center justify-content-center flex-1 font_opt font-cut border bg-grey p-2 px-3 cursor-pointer"
+                                                 data-option="linethrough">
+                                                <span>S</span>
+                                            </div>
+                                            <div class="d-flex align-items-center justify-content-center flex-1 font-align border bg-grey p-2 px-3 cursor-pointer">
+                                                <i class="fa fa-align-center m-auto"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_transform">
+                                         <div class="control">
+                                             <div class="d-flex justify-content-between align-items-center">
+                                                 <div class="d-flex flex-column flex-grow-1">
+                                                     <label>Rotate</label>
+                                                     <input name="rotate" type="range" value="0" min="0" max="360" step="1" class="progress elem_rotate mt-1"/>
+                                                 </div>
+                                                 <input class="border p-2 text-center rotate-text" value="0" name="rotateval" type="number" step="1" min="0" max="360"/>
+                                             </div>
+                                         </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_curved">
+                                        <!-- Bend Radius -->
+                                        <div class="control py-2">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="d-flex flex-column flex-grow-1">
+                                                    <label class="me-2">Bend Radius</label>
+                                                    <input type="range" min="-400" max="400" step="1"
+                                                           class="progress elem_textbend text_bend_radius mt-1"/>
+                                                </div>
+                                                <input type="number" value="100" min="-500" max="500" step="5"
+                                                   class="border p-2 text-center elem_textbend text_bend_radius"/>
+                                            </div>
+                                        </div>
+
+                                        <!-- Letter Spacing -->
+                                        <div class="control py-2">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="d-flex flex-column flex-grow-1">
+                                                    <label>Spacing</label>
+                                                    <input type="range" min="0" max="50" step="1"
+                                                           class="progress elem_textbend text_bend_spacing mt-1"/>
+                                                </div>
+                                                <input type="number" value="10" min="0" max="50" step="1"
+                                                   class="border p-2 text-center elem_textbend text_bend_spacing"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_remove_bg">
+                                        <button type="button" class="btn btn-primary w-100 tus-remove-bg-btn">
+                                            <i class="fa fa-magic me-1"/>
+                                            Remove background
+                                        </button>
+                                        <p class="small text-muted mt-2 mb-0">
+                                            Removes the background from the selected canvas image.
+                                        </p>
+                                    </div>
+                                    <div class="section_tools_options section_tool_vectorize">
+                                        <button type="button" class="btn btn-primary w-100 tus-vectorize-btn">
+                                            <i class="fa fa-object-group me-1"/>
+                                            Convert to vector
+                                        </button>
+                                        <p class="small text-muted mt-2 mb-0">
+                                            Traces the photo layer into vector paths so you can recolor it
+                                            and apply foil, emboss, or spot finishes. Best for logos and
+                                            flat artwork — photos stay as photo layers unless you convert them.
+                                        </p>
+                                    </div>
+                                    <div class="section_tools_options section_tool_finish">
+                                        <div class="control pb-2">
+                                            <label class="form-label">Finish type</label>
+                                            <select class="form-select tus-finish-effect">
+                                                <option value="none">None</option>
+                                                <option value="emboss">Emboss</option>
+                                                <option value="deboss">Deboss</option>
+                                                <option value="foil">Hot Foil</option>
+                                                <option value="foil_emboss">Foil Emboss</option>
+                                                <option value="gloss">Gloss (Spot UV)</option>
+                                                <option value="satin">Satin</option>
+                                                <option value="varnish_matte">Matte Varnish</option>
+                                            </select>
+                                        </div>
+                                        <div class="control py-2 tus-finish-foil-row d-none">
+                                            <label class="form-label">Foil color</label>
+                                            <select class="form-select tus-finish-foil-metal">
+                                                <option value="gold">Gold</option>
+                                                <option value="silver">Silver</option>
+                                                <option value="copper">Copper</option>
+                                                <option value="rose_gold">Rose Gold</option>
+                                                <option value="holographic">Holographic</option>
+                                            </select>
+                                        </div>
+                                        <div class="control py-2 tus-finish-relief-row d-none">
+                                            <label class="form-label">Relief depth (mm)</label>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <input type="range" class="tus-finish-relief flex-grow-1"
+                                                       min="0" max="5" step="0.05" value="0.6"/>
+                                                <span class="tus-finish-relief-value text-nowrap">0.60 mm</span>
+                                            </div>
+                                        </div>
+                                        <div class="control pt-2 tus-finish-varnish-row">
+                                            <label class="form-label">Varnish</label>
+                                            <select class="form-select tus-finish-varnish">
+                                                <option value="none">No</option>
+                                                <option value="gloss">Gloss</option>
+                                                <option value="satin">Satin</option>
+                                            </select>
+                                        </div>
+                                        <p class="small text-muted mt-2 mb-0">
+                                            Select a layer first, then choose a finish — foil and emboss apply
+                                            to vector artwork and text. Photo layers must be converted to
+                                            vector first (Vectorize tool).
+                                            <t t-if="personalizer_config.get('show_3d_preview')">
+                                                Switch to 3D Preview to inspect foil, emboss, and varnish under lighting.
+                                            </t>
+                                        </p>
+                                    </div>
+                                    <div class="section_tools_options section_tool_effects">
+                                        <div class="control pb-2">
+                                            <label class="me-2">Brightness</label>
+                                            <input name="brightness" type="range" value="0" min="-1" max="1" step="0.1"
+                                                   class="progress elem_brightness mt-1"/>
+                                        </div>
+                                        <div class="control py-2">
+                                            <label class="me-2">Contrast</label>
+                                            <input name="contrast" type="range" value="0" min="-1" max="1" step="0.1"
+                                                   class="progress elem_contrast mt-1"/>
+                                        </div>
+                                        <div class="control py-2">
+                                            <label class="me-2">Saturation</label>
+                                            <input name="saturation" type="range" value="0" min="-1" max="1" step="0.1"
+                                                   class="progress elem_saturation mt-1"/>
+                                        </div>
+                                        <div class="control pt-2">
+                                            <label class="me-2">HueRotation</label>
+                                            <input name="huerotation" type="range" value="0" min="0" max="1" step="0.1"
+                                                   class="progress elem_huerotation mt-1"/>
+                                        </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_replace">
+                                        <div>
+                                            <label for="formFile" class="form-label">Replace Image</label>
+                                            <input
+                                                    type="file"
+                                                    class="exchange-img form-control"
+                                                    name="files"
+                                                    accept="image/jpeg,image/png,image/svg+xml,image/jpg"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_flip">
+                                        <div class="d-flex gap-3 justify-content-center align-items-center">
+                                            <div class="flipx px-3 py-1 d-flex justify-content-center align-items-center cursor-pointer bg-grey rounded flex-wrap border">
+                                                <img class="flip-img pe-1" src="/tus_product_personalizer/static/src/data/img/flip_x.png"
+                                                     alt="flipX" width="20" height="20"/>
+                                                FlipX
+                                            </div>
+                                            <div class="flipy px-3 py-1 d-flex justify-content-center align-items-center cursor-pointer bg-grey rounded flex-wrap border">
+                                                <img class="flip-img pe-1" src="/tus_product_personalizer/static/src/data/img/flip_y.png"
+                                                     alt="flipY" width="20" height="20" />
+                                                FlipY
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="section_tools_options section_tool_opacity">
+                                        <div class="control">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="d-flex flex-column flex-grow-1">
+                                                    <label>Opacity</label>
+                                                    <input name="opacity" type="range" value="100" min="0" max="100" step="1"
+                                                           class="progress elem_opacity mt-1"/>
+                                                </div>
+                                                <input class="border p-2 text-center opacity-text" value="100"
+                                                       name="opacityval" type="number" step="1" min="0" max="100"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sidebar_options">
+                            <div t-if="personalizer_config.get('enable_swap', True)" class="fab_item" data-option="swap">
+                                <img src="/tus_product_personalizer/static/src/data/img/product_replace.svg"
+                                    class="fab_icon"
+                                />
+                                <span class="fab_label">Product</span>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_image', True)" class="fab_item" data-option="image">
+                                <img src="/tus_product_personalizer/static/src/data/img/dashboard_icon-01.svg"
+                                    class="fab_icon"
+                                />
+                                <span class="fab_label">Upload</span>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_text', True)" class="fab_item" data-option="text">
+                                <img src="/tus_product_personalizer/static/src/data/img/dashboard_icon-02.svg"
+                                     class="fab_icon"
+                                />
+                                <span class="fab_label">Add text</span>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_layers', True)" class="fab_item" data-option="layers">
+                                <img
+                                    src="/tus_product_personalizer/static/src/data/img/dashboard_icon-03.svg"
+                                    class="fab_icon"
+                                />
+                                <span class="fab_label">Layers</span>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_shape', True)" class="fab_item" data-option="shapes">
+                                <img
+                                    src="/tus_product_personalizer/static/src/data/img/dashboard_icon-04.svg"
+                                    class="fab_icon"
+                                />
+                                <span class="fab_label">Graphics</span>
+                            </div>
+                            <div class="fab_item" data-option="clipart">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                                <span class="fab_label">Clipart</span>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_ai')" class="fab_item" data-option="ai">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;">
+                                    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                    <path d="M5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1 1 3z"/>
+                                    <path d="M19 13l.75 2.25L22 16l-2.25.75L19 19l-.75-2.25L16 16l2.25-.75L19 13z"/>
+                                </svg>
+                                <span class="fab_label">AI</span>
+                            </div>
+                            <div
+                                class="fab_item"
+                                data-option="templates"
+                                t-if="product and personalizer_config.get('enable_templates', True)"
+                            >
+                                <img
+                                    src="/tus_product_personalizer/static/src/data/img/dashboard_icon-05.svg"
+                                    class="fab_icon"
+                                />
+                                <span class="fab_label">Templates</span>
+                            </div>
+                            <div t-if="show_vdp" class="fab_item" data-option="vdp">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fab_icon" style="color: grey; margin-bottom: 5px;">
+                                    <path d="M4 6h16M4 10h16M4 14h10M4 18h6"/>
+                                </svg>
+                                <span class="fab_label">VDP</span>
+                            </div>
+                        </div>
+                        <div class="options_content" data-panel-title="">
+                            <div class="tus-panel-header">
+                                <h6 class="tus-panel-title mb-0">Tools</h6>
+                                <button type="button" class="tus-btn-icon options-close-btn" aria-label="Close panel">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_swap', True)" class="section_options section_swap">
+                                <div class="fab_swap_container p-2">
+                                    <t t-if="show_matrix_table">
+                                        <!-- Color Swap Flow -->
+                                        <t t-set="color_attribute" t-value="product.attribute_line_ids.filtered(lambda l: l.attribute_id.display_type == 'color' or l.attribute_id.name.lower() in ['color', 'colour'])[:1]"/>
+                                        <t t-if="color_attribute">
+                                            <t t-foreach="color_attribute.product_template_value_ids" t-as="color_val">
+                                                <t t-set="variant_for_color" t-value="product.product_tmpl_id.product_variant_ids.filtered(lambda p: color_val in p.product_template_attribute_value_ids)[:1]"/>
+                                                <div t-attf-class="img-size image_card color-swap #{'selected-color' if color_val.id == current_color_id else ''}"
+                                                     t-att-data-color_attr_value_id="color_val.id"
+                                                     t-att-title="color_val.name">
+                                                    <div t-if="color_val.image" t-field="color_val.image" t-options='{"widget": "image"}'/>
+                                                    <div t-elif="variant_for_color and variant_for_color.image_1920" t-field="variant_for_color.image_1920" t-options='{"widget": "image"}'/>
+                                                    <div t-else="" class="color-placeholder" t-attf-style="background-color: #{color_val.html_color or '#ddd'}; width: 100%; height: 100%; min-height: 100px; border-radius: 4px;"/>
+                                                    <span class="small d-block text-center mt-1" t-esc="color_val.name"/>
+                                                </div>
+                                            </t>
+                                        </t>
+                                    </t>
+                                    <t t-else="">
+                                        <!-- Normal Variant Swap Flow -->
+                                        <style>
+                                            .variant-card:hover {
+                                                transform: translateY(-2px);
+                                                box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+                                                border-color: #e0e0e0 !important;
+                                            }
+                                            .variant-card.selected-variant {
+                                                border-color: #007bff !important;
+                                                background: #f0f7ff !important;
+                                                box-shadow: 0 0 0 2px rgba(0,123,255,0.15) !important;
+                                            }
+                                            .variant-card.selected-variant .selection-indicator {
+                                                display: flex !important;
+                                            }
+                                        </style>
+                                        <t t-foreach="product.product_tmpl_id.product_variant_ids" t-as="variant">
+                                            <div t-attf-class="variant-card variant-swap #{'selected-variant' if variant.id == product.id else ''}"
+                                                 t-att-data-variant_id="variant.id"
+                                                 style="cursor: pointer; border: 1px solid #eee; border-radius: 10px; margin-bottom: 12px; background: #fff; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.04); position: relative;">
+                                                
+                                                <!-- Image Container -->
+                                                <div style="background: #fbfbfc; display: flex; align-items: center; justify-content: center; height: 110px; padding: 10px;">
+                                                    <div t-field="variant.image_1920"
+                                                         t-options='{"widget": "image"}'
+                                                         style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                                                    
+                                                    <!-- Active Indicator -->
+                                                    <div class="selection-indicator" style="position: absolute; top: 8px; right: 8px; background: #007bff; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,123,0.3);">
+                                                        <i class="fa fa-check"/>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Variant Details -->
+                                                <div style="padding: 10px; border-top: 1px solid #f5f5f5; background: #fff;">
+                                                    <div class="d-flex flex-wrap gap-1 justify-content-center">
+                                                        <t t-foreach="variant.product_template_attribute_value_ids" t-as="val">
+                                                            <span style="background: #f1f3f5; color: #495057; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: capitalize; border: 1px solid #e9ecef;">
+                                                                <t t-esc="val.name"/>
+                                                            </span>
+                                                        </t>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </t>
+                                </div>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_image', True)" class="section_options section_image">
+                                <div class="tus-upload-module-tabs" role="tablist" aria-label="Upload options">
+                                    <button
+                                        type="button"
+                                        class="upload-module-tab active"
+                                        data-upload-tab="upload"
+                                        role="tab"
+                                        aria-selected="true"
+                                        aria-controls="upload-module-pane-upload"
+                                        title="Upload"
+                                    >
+                                        <i class="fa fa-cloud-upload" aria-hidden="true"/>
+                                        <span class="upload-module-tab__label">Upload</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="upload-module-tab"
+                                        data-upload-tab="qr"
+                                        role="tab"
+                                        aria-selected="false"
+                                        aria-controls="upload-module-pane-qr"
+                                        title="QR Code"
+                                    >
+                                        <i class="fa fa-qrcode" aria-hidden="true"/>
+                                        <span class="upload-module-tab__label">QR Code</span>
+                                    </button>
+                                </div>
+                                <div class="tus-upload-module-panes">
+                                    <div
+                                        id="upload-module-pane-upload"
+                                        class="upload-module-pane upload-pane active"
+                                        role="tabpanel"
+                                    >
+                                        <div class="fab_upload">
+                                            <span class="fab-upload-title">Drop images here</span>
+                                            <span class="fab-upload-dpi-hint">Recommended file quality: 150 DPI for sharp print</span>
+                                            <span class="fab-upload-format-hint small text-muted d-block mt-1">
+                                                Photos print as photo layers. Simple logos may auto-convert to vector.
+                                            </span>
+                                            <span class="btn-upload">Browse File</span>
+                                            <input
+                                                type="file"
+                                                multiple="multiple"
+                                                class="fab-upload-input"
+                                                name="files"
+                                                accept="image/jpeg,image/png,image/svg+xml,image/jpg,.ai,.eps"
+                                            />
+                                        </div>
+                                        <div class="default_images">
+                                            <p class="upload-library-hint">
+                                                Click a thumbnail to add it to the design. Hover for remove background or delete.
+                                            </p>
+                                            <t t-set="user" t-value="request.env.user.id"/>
+                                            <t t-set="images"
+                                               t-value="request.env['canvas.image'].search([('user_id','=',user)],limit=10)"/>
+                                            <div class="upload-library-grid" t-att-class="{'d-none': not images}">
+                                                <t t-foreach="images" t-as="image">
+                                                        <div class="upload-library-item image-item" t-att-data-id="image.id">
+                                                            <div class="upload-library-item__media">
+                                                                <img t-if="image.sudo().file"
+                                                                     t-att-src="image_data_uri(image.sudo().file)"
+                                                                     class="default-canvas-img"
+                                                                     t-att-alt="image.name"/>
+                                                            </div>
+                                                            <div class="upload-library-item__overlay">
+                                                                <button type="button"
+                                                                        class="upload-library-item__action tus-remove-bg-thumb-btn"
+                                                                        title="Remove background"
+                                                                        aria-label="Remove background">
+                                                                    <i class="fa fa-magic"/>
+                                                                </button>
+                                                                <button type="button"
+                                                                        class="upload-library-item__action upload-library-item__action--danger delete-btn"
+                                                                        title="Delete"
+                                                                        aria-label="Delete">
+                                                                    <i class="fa fa-trash-o"/>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </t>
+                                            </div>
+                                            <p t-if="not images" class="upload-library-empty">
+                                                No uploads yet — drop a file above or browse to get started.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div
+                                        id="upload-module-pane-qr"
+                                        class="upload-module-pane qr-pane"
+                                        role="tabpanel"
+                                    >
+                                        <div class="fab_qr_code">
+                                            <textarea
+                                                class="qr-url-input"
+                                                rows="4"
+                                                placeholder="Enter URL or text"
+                                                autocomplete="off"
+                                            />
+                                            <div class="qr-color-swatches" role="group" aria-label="QR code color">
+                                                <button
+                                                    type="button"
+                                                    class="qr-color-swatch active"
+                                                    data-color="#000000"
+                                                    title="Black"
+                                                    aria-label="Black"
+                                                    style="background-color: #000000;"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="qr-color-swatch"
+                                                    data-color="#e53935"
+                                                    title="Red"
+                                                    aria-label="Red"
+                                                    style="background-color: #e53935;"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="qr-color-swatch"
+                                                    data-color="#1e88e5"
+                                                    title="Blue"
+                                                    aria-label="Blue"
+                                                    style="background-color: #1e88e5;"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="qr-color-swatch"
+                                                    data-color="#43a047"
+                                                    title="Green"
+                                                    aria-label="Green"
+                                                    style="background-color: #43a047;"
+                                                />
+                                            </div>
+                                            <button type="button" class="fab-btn add_qr_code w-100">
+                                                <span>Add QR-Code</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_text', True)" class="section_options section_text">
+                                <div class="fab_add_text">
+                                    <textarea placeholder="Enter some text" />
+                                    <div class="fab-btn add_new_text">
+                                        <span>Add Text</span>
+                                    </div>
+                                </div>
+                                <div class="default_texts" t-if="personalizer_config.get('enable_text_templates', True) and text_template_groups">
+                                    <p class="small text-muted mb-2 px-1 mt-3">Text templates</p>
+                                    <div class="fab_text_template_categories">
+                                        <t t-foreach="text_template_groups" t-as="tpl_group">
+                                            <button type="button"
+                                                    class="fab_text_template_category_btn"
+                                                    t-attf-class="fab_text_template_category_btn #{tpl_group_index == 0 and 'active' or ''}"
+                                                    t-att-data-category="tpl_group.key">
+                                                <t t-esc="tpl_group.label"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                    <t t-foreach="text_template_groups" t-as="tpl_group">
+                                        <div class="fab_text_template_category_panel"
+                                             t-att-data-category="tpl_group.key"
+                                             t-attf-class="fab_text_template_category_panel #{tpl_group_index != 0 and 'd-none' or ''}">
+                                            <div class="fab_text_template_grid">
+                                                <t t-foreach="tpl_group.templates" t-as="text_tpl">
+                                                    <div class="text_template_option"
+                                                         t-att-data-template_id="text_tpl.id"
+                                                         t-att-title="text_tpl.name">
+                                                        <img class="text_template_img"
+                                                             t-att-src="'/product/designer/text-template/%s/data' % text_tpl.id"
+                                                             t-att-alt="text_tpl.name"/>
+                                                        <span class="text_template_name small" t-esc="text_tpl.name"/>
+                                                    </div>
+                                                </t>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                            <div t-if="show_vdp" class="section_options section_vdp">
+                                <div class="tus-vdp-panel p-2">
+                                    <p class="small text-muted mb-2">
+                                        <strong>Optional.</strong> Skip this tab to use the same design on every item.
+                                        <br/>
+                                        <strong>Step 1:</strong> Select text on the canvas → open the <strong>Variable</strong> tab in the text toolbar (next to Color / Effects).
+                                        <br/>
+                                        <strong>Step 2:</strong> Upload your CSV or Excel file below.
+                                        <t t-if="show_matrix_table">
+                                            <br/>
+                                            <strong>Bulk matrix:</strong> include <code>size</code> (and <code>color</code> if needed) columns so each row maps to a variant.
+                                        </t>
+                                    </p>
+                                    <label class="form-label small fw-semibold">Variable field key</label>
+                                    <div class="input-group input-group-sm mb-2">
+                                        <input type="text" class="form-control tus-vdp-field-key" placeholder="e.g. name"/>
+                                        <button type="button" class="btn btn-outline-secondary tus-vdp-mark-btn">Mark</button>
+                                        <button type="button" class="btn btn-outline-danger tus-vdp-unmark-btn">Clear</button>
+                                    </div>
+                                    <p class="small fw-semibold mb-1">Marked fields</p>
+                                    <ul class="tus-vdp-field-list list-unstyled small mb-3">
+                                        <li class="text-muted">No variable fields yet.</li>
+                                    </ul>
+                                    <label class="form-label small fw-semibold">Data file (CSV / XLSX)</label>
+                                    <input type="file" class="form-control form-control-sm tus-vdp-file-input mb-1" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+                                    <div class="d-flex justify-content-between align-items-center small text-muted mb-2">
+                                        <span class="tus-vdp-upload-status">No file loaded</span>
+                                        <span><t t-esc="'Rows:'"/> <span class="tus-vdp-row-count">0</span></span>
+                                    </div>
+                                    <label class="form-label small fw-semibold tus-vdp-preview-label">Preview row 0 / 0</label>
+                                    <input type="range" class="form-range tus-vdp-preview-index" min="0" max="0" value="0"/>
+                                </div>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_layers', True)" class="section_options section_layers">
+                                <div class="fab_scroll_area">
+                                    <div id="layers_list" class="layers_list"></div>
+                                </div>
+                            </div>
+                            <div class="section_options section_shapes" t-if="personalizer_config.get('enable_shape', True)">
+                                <div class="fab_shape_container p-2">
+                                    <div class="shape_option add_shape" data-shape="rect_shape">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/rect_shape.svg"
+                                            alt="rectangle"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="circle_shape">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/circle_shape.svg"
+                                            alt="circle"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="triangle_new">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/triangle_new.svg"
+                                            alt="triangle"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="line_shape">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/line_shape.svg"
+                                            alt="line"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="pentagon_new">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/pentagon_new.svg"
+                                            alt="pentagon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="star_new">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/star_new.svg"
+                                            alt="star"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-01">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-01.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-02">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-02.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-03">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-03.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-04">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-04.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-05">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-05.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-06">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-06.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-07">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-07.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-08">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-08.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-09">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-09.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-10">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-10.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-11">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-11.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-12">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-12.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-13">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-13.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-14">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-14.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-15">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-15.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-16">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-16.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-17">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-17.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-18">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-18.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-19">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-19.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-20">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-20.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-21">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-21.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-22">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-22.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-23">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-23.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-24">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-24.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-25">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-25.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-26">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-26.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-27">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-27.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-28">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-28.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-29">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-29.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-30">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-30.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-31">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-31.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-32">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-32.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-33">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-33.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-34">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-34.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-35">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-35.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-36">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-36.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-37">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-37.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                    <div class="shape_option add_shape" data-shape="Icon-38">
+                                        <img
+                                            class="shape_img"
+                                            src="/tus_product_personalizer/static/src/data/img/Icon-38.svg"
+                                            alt="icon"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_ai')" class="section_options section_ai">
+                                <div class="fab_ai_container p-2">
+                                    <p class="small text-muted mb-2">
+                                        Describe the image you want (e.g. bicycle, logo icon). Click a result to add it to your design.
+                                    </p>
+                                    <textarea class="form-control ai-prompt-input mb-2" rows="3" placeholder="e.g. red bicycle on white background, flat vector style"/>
+                                    <button type="button" class="btn btn-primary w-100 ai-generate-btn mb-2">
+                                        <i class="fa fa-magic me-1"/> Generate
+                                    </button>
+                                    <div class="ai-results-grid tus-grid d-none"/>
+                                    <button type="button" class="btn btn-outline-secondary w-100 ai-generate-more-btn mt-2 d-none">
+                                        Generate more
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="section_options section_clipart" style="height: 100%;">
+                                <div class="p-2 border-bottom shadow-sm flex-shrink-0">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0" id="search-addon" style="border-radius: 6px 0 0 6px;">
+                                            <i class="fa fa-search text-muted"></i>
+                                        </span>
+                                        <input type="text" class="form-control bg-light border-start-0 ps-0" id="clipart-search-input" placeholder="Search clipart..." aria-label="Search" aria-describedby="search-addon" style="border-radius: 0 6px 6px 0; box-shadow: none;" />
+                                    </div>
+                                </div>
+                                <div class="fab_clipart_container p-2 flex-grow-1" style="overflow-y: auto;">
+                                    <div id="clipart-categories-container" class="w-100"></div>
+                                </div>
+                            </div>
+                            <div class="section_options section_templates" t-if="product and personalizer_config.get('enable_templates', True)">
+                                <div class="fab_template_container p-2">
+                                    <t t-if="product_template_ids">
+                                        <p class="small text-muted mb-2 px-1">Start from a design</p>
+                                        <div class="fab_template_grid mb-3">
+                                            <t t-foreach="product_template_ids" t-as="product_template">
+                                                <div class="template_option template_option--product"
+                                                     t-att-data-template_id="product_template.id"
+                                                     t-att-data-design_format="product_template.design_format"
+                                                     data-mode="Product"
+                                                     t-att-title="product_template.name">
+                                                    <img class="template_img"
+                                                         t-att-src="image_data_uri(product_template.preview_image)"
+                                                         t-att-alt="product_template.name"/>
+                                                    <span class="template_name small" t-esc="product_template.name"/>
+                                                </div>
+                                            </t>
+                                        </div>
+                                    </t>
+                                    <t t-if="design_ids">
+                                        <p class="small text-muted mb-2 px-1" t-if="product_template_ids">My saved designs</p>
+                                        <div class="fab_template_grid">
+                                            <t t-foreach="design_ids" t-as="design_id">
+                                                <div t-if="design_id.view_image"
+                                                     class="template_option template_option--saved"
+                                                     t-att-data-design_id="design_id.id"
+                                                     data-mode="Contact"
+                                                     t-att-title="design_id.name">
+                                                    <img class="template_img"
+                                                         t-att-src="image_data_uri(design_id.view_image)"
+                                                         alt="Saved design"/>
+                                                </div>
+                                            </t>
+                                        </div>
+                                    </t>
+                                    <p t-if="not product_template_ids and not design_ids" class="small text-muted px-1 mb-0">
+                                        No templates available yet.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="main_wrapper">
+                        <div class="tus-canvas-zoom-dock" aria-label="Zoom controls"/>
+                        <div class="tus-3d-viewer-container d-none">
+                            <canvas class="tus-3d-canvas"/>
+                        </div>
+                        <div class="tus-canvas-loader loader_hide" aria-hidden="true" aria-live="polite">
+                            <div class="fab-loader">
+                                <t t-call="tus_product_personalizer.product_loader_markup"/>
+                                <span class="fab-loader-text"/>
+                            </div>
+                        </div>
+
+                        <!-- Side + design-area controls (one premium strip on mobile) -->
+                        <div class="tus-stage-controls">
+                        <ul class="nav nav-tabs canvas-tabs" role="tablist">
+                            <t t-foreach="DesignerCanvas" t-as="canvas">
+                                <li class="nav-item" role="presentation">
+                                    <button
+                                        t-attf-class="nav-link canvas-item #{'active' if canvas_index == 0 else ''}"
+                                        t-att-id="canvas.title + '-tab'"
+                                        data-bs-toggle="tab"
+                                        t-att-data-bs-target="'#' + canvas.title + '_canvas'"
+                                        t-att-data-side="canvas.title"
+                                        type="button"
+                                        role="tab">
+
+                                        <img t-if="not empty_canvas_mode and canvas.sudo().thumbnail"
+                                             t-att-src="image_data_uri(canvas.sudo().thumbnail)"
+                                             class="img-thumbnail canvas-thumb"/>
+                                        <span t-else=""
+                                              class="canvas-thumb tus-empty-canvas-tab-icon d-inline-flex align-items-center justify-content-center text-uppercase fw-semibold"
+                                              t-esc="canvas.title"/>
+
+                                        <div class="small text-center mt-1">
+                                            <t t-esc="canvas.title"/>
+                                        </div>
+                                    </button>
+                                </li>
+                            </t>
+                        </ul>
+                        
+                        <!-- Design Area Selectors - One for each side -->
+                        <t t-foreach="DesignerCanvas" t-as="canvas">
+                            <div class="canvas_switcher" 
+                                 t-att-data-side="canvas.title"
+                                 t-attf-style="display: #{canvas_index == 0 and 'block' or 'none'};">
+                                
+                                <!-- Only show if multiple design areas exist -->
+                                <t t-if="canvas.design_areas_json and len(canvas.design_areas_json) > 1">
+                                    <div class="design-area-tabs">
+                                        <div class="area-tabs-list">
+                                            <!-- Loop through design areas -->
+                                            <t t-foreach="canvas.design_areas_json" t-as="area">
+                                                <button class="area-tab-btn"
+                                                        t-att-data-area-id="area.get('id')"
+                                                        t-att-data-side="canvas.title"
+                                                        t-attf-class="area-tab-btn #{area_index == 0 and 'active' or ''}"
+                                                        type="button">
+                                                    
+                                                    <span class="area-tab-icon" t-esc="area_index + 1"/>
+                                                    <span class="area-tab-label">
+                                                        <t t-esc="area.get('name') or 'Area %s' % (area_index + 1)"/>
+                                                        <t t-if="show_design_price and area.get('meta', {}).get('price')">
+                                                            <span class="text-primary ms-1" style="font-size: 0.85em;">
+                                                                (+<t t-esc="area.get('meta', {}).get('price')" t-options="{'widget': 'monetary', 'display_currency': request.website.currency_id}"/>)
+                                                            </span>
+                                                        </t>
+                                                    </span>
+                                                </button>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+                        </div><!-- /.tus-stage-controls -->
+
+                        <!-- TAB CONTENT -->
+                        <div class="tab-content">
+                            <t t-foreach="DesignerCanvas" t-as="canvas">
+                                <div
+                                    t-attf-class="editor_side tab-pane fade #{'show active' if canvas_index == 0 else ''}"
+                                    t-att-id="canvas.title + '_canvas'"
+                                    role="tabpanel">
+
+                                    <div class="product-stage position-relative">
+                                        <div class="image_preview_box position-relative tus-empty-canvas-stage">
+                                            <img t-if="not empty_canvas_mode and canvas.sudo().thumbnail"
+                                                 class="img-fluid main_canvas_img"
+                                                 t-att-src="image_data_uri(canvas.sudo().thumbnail)"/>
+                                            <img t-else=""
+                                                 class="img-fluid main_canvas_img tus-empty-canvas-placeholder"
+                                                 alt="Canvas"/>
+                                            <div class="canvas_container"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                        <!-- Side view switcher (Printify-style, centered over canvas) -->
+                        <div class="tus-canvas-views-dock" aria-label="Product views"/>
+                    </div>
+
+                    </div><!-- /.tus-designer-body -->
+
+                    <footer class="tus-designer-footer">
+                        <div class="tus-footer-left">
+                            <div class="tus-zoom-controls" role="group" aria-label="Zoom">
+                                <button type="button" class="tus-zoom-out" title="Zoom out" aria-label="Zoom out">
+                                    <i class="fa fa-minus"/>
+                                </button>
+                                <button type="button" class="tus-zoom-value tus-zoom-reset" title="Reset zoom">100%</button>
+                                <button type="button" class="tus-zoom-in" title="Zoom in" aria-label="Zoom in">
+                                    <i class="fa fa-plus"/>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="tus-footer-right">
+                            <t t-if="from_backend">
+                                <button type="button" class="tus-save-product-btn save-order-line_btn" id="save-btn" data-sale-oder-line-id="sale_order_line.id">
+                                    Save
+                                </button>
+                            </t>
+                            <t t-elif="not share_token or share_is_owner">
+                                <div class="tus-footer-checkout-wrap d-flex align-items-center gap-2">
+                                    <div t-if="show_printing_methods" class="printing-method-container d-none align-items-center gap-2" id="printing-method-selector-wrapper">
+                                        <label for="printing-method-select" class="small mb-0 text-muted fw-bold d-none">Method:</label>
+                                        <select id="printing-method-select" class="form-select form-select-sm" style="width: auto; min-width: 120px;">
+                                        </select>
+                                    </div>
+                                    <div class="tus-footer-checkout-anchor">
+                                        <div class="tus-footer-price-popover d-none" aria-hidden="true" role="dialog" aria-label="Price breakdown">
+                                            <div class="tus-footer-price-popover-inner">
+                                                <div class="tus-footer-price-popover-title">Price breakdown</div>
+                                                <div class="tus-footer-price-popover-row">
+                                                    <span>Product price</span>
+                                                    <span class="tus-footer-pop-base-val"/>
+                                                </div>
+                                                <div class="tus-footer-price-popover-row tus-footer-pop-design d-none">
+                                                    <span>Design areas</span>
+                                                    <span class="tus-footer-pop-design-val"/>
+                                                </div>
+                                                <div class="tus-footer-price-popover-row tus-footer-pop-printing d-none">
+                                                    <span class="tus-footer-pop-printing-label">Printing</span>
+                                                    <span class="tus-footer-pop-printing-val"/>
+                                                </div>
+                                                <div class="tus-footer-price-popover-row tus-footer-pop-total">
+                                                    <span>Total</span>
+                                                    <span class="tus-footer-pop-total-val"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="tus-footer-checkout-group">
+                                        <div class="tus-footer-price-panel designer-price"
+                                             t-att-data-base-price="product_unit_price">
+                                            <span class="tus-footer-price-cart" aria-hidden="true">
+                                                <i class="fa fa-shopping-cart"/>
+                                            </span>
+                                            <span class="tus-footer-price-amount">
+                                                <span class="tus-footer-currency"><t t-esc="request.website.currency_id.symbol"/></span>
+                                                <span class="oe_currency_value"><t t-esc="'%.2f' % product_unit_price"/></span>
+                                            </span>
+                                            <button type="button"
+                                                    class="tus-footer-price-info-btn"
+                                                    title="Price breakdown"
+                                                    aria-label="Price breakdown"
+                                                    aria-expanded="false">
+                                                <i class="fa fa-info-circle"/>
+                                            </button>
+                                        </div>
+                                        <button type="button"
+                                                class="tus-footer-add-cart-btn tus-save-product-btn add-to-custom-cart disabled"
+                                                disabled="disabled"
+                                                id="add-to-cart-btn"
+                                                title="Add to cart"
+                                                aria-label="Add to cart"
+                                                t-att-data-variant-id="product_id or product.id"
+                                                t-att-data-product-name="product_display_name"
+                                                t-att-data-price="product_unit_price"
+                                                t-att-data-image="product_image_uri">
+                                            Add to cart
+                                        </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </footer>
+
+                </div>
+
+                <!-- Printify-style overlay: product info sidebar panel -->
+                <div class="tus-overlay-backdrop d-none" aria-hidden="true"/>
+                <div class="tus-product-info-panel sidebar-panel d-none" role="dialog" aria-modal="true" aria-label="Product information" id="product-info-popup">
+                    <div class="sidebar-panel-header">
+                        <h6 class="sidebar-panel-title">Important product information</h6>
+                        <button type="button" class="tus-btn-icon tus-info-close" aria-label="Close">
+                            <i class="fa fa-times"/>
+                        </button>
+                    </div>
+                    <div class="sidebar-panel-body panel-wrapper">
+                        <t t-if="product">
+                            <p class="product-intro-title small fw-bold mb-2" t-esc="product.display_name"/>
+                            <div class="product-intro d-flex gap-3 mb-3">
+                                <div class="main-image-container flex-shrink-0">
+                                    <img class="main-image rounded border bg-white"
+                                         t-att-src="product_image_uri"
+                                         alt="Product"/>
+                                </div>
+                                <div class="product-info flex-grow-1 small text-muted">
+                                    <p class="mb-1" t-if="product.default_code">
+                                        <t t-esc="product.default_code"/>
+                                    </p>
+                                    <p class="mb-1">Customizable product</p>
+                                    <p class="mb-0 fw-semibold text-dark">
+                                        <span class="oe_currency_value"><t t-esc="'%.2f' % product_unit_price"/></span>
+                                        <t t-esc="request.website.currency_id.symbol"/>
+                                    </p>
+                                </div>
+                            </div>
+                        </t>
+                        <div class="accordion accordion-flush tus-info-accordion" id="tusProductInfoAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2 small fw-bold" type="button"
+                                            data-bs-toggle="collapse" data-bs-target="#tusInfoCost" aria-expanded="false">
+                                        Production cost:
+                                        <span class="ms-1">
+                                            <t t-esc="'%.2f' % product_unit_price"/>
+                                            <t t-esc="request.website.currency_id.symbol"/>
+                                        </span>
+                                    </button>
+                                </h2>
+                                <div id="tusInfoCost" class="accordion-collapse collapse" data-bs-parent="#tusProductInfoAccordion">
+                                    <div class="accordion-body py-2 small">
+                                        <div class="d-flex justify-content-between">
+                                            <span>Printed product</span>
+                                            <span class="fw-semibold">
+                                                <t t-esc="'%.2f' % product_unit_price"/>
+                                                <t t-esc="request.website.currency_id.symbol"/>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <t t-set="first_view" t-value="DesignerCanvas[0] if DesignerCanvas else False"/>
+                            <div class="accordion-item" t-if="first_view">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2 small fw-bold" type="button"
+                                            data-bs-toggle="collapse" data-bs-target="#tusInfoPrintArea" aria-expanded="false">
+                                        Print area size:
+                                        <span class="ms-1" t-if="empty_canvas_mode and empty_canvas_width"
+                                              t-esc="'%s × %s %s' % (empty_canvas_width, empty_canvas_height, empty_canvas_unit or 'in')"/>
+                                        <span class="ms-1" t-else=""
+                                              t-esc="'%d × %d px' % (int(first_view.stage_width or 0), int(first_view.stage_height or 0))"/>
+                                    </button>
+                                </h2>
+                                <div id="tusInfoPrintArea" class="accordion-collapse collapse" data-bs-parent="#tusProductInfoAccordion">
+                                    <div class="accordion-body py-2 small">
+                                        <dl class="row mb-0">
+                                            <dt class="col-6">Stage width</dt>
+                                            <dd class="col-6 text-end mb-1" t-esc="int(first_view.stage_width or 0)"/>
+                                            <dt class="col-6">Stage height</dt>
+                                            <dd class="col-6 text-end mb-0" t-esc="int(first_view.stage_height or 0)"/>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tus-guidelines-banner mt-3 p-3 rounded">
+                            <div class="d-flex gap-2">
+                                <i class="fa fa-info-circle mt-1"/>
+                                <div>
+                                    <div class="small fw-bold mb-1">Product and design guidelines</div>
+                                    <p class="small mb-0 tus-guidelines-text">
+                                        Keep your design inside the printable areas. Important elements should stay within the safe zone; bleed areas may be trimmed during production.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <label class="tus-skip-info small d-flex align-items-center gap-2 mt-3 mb-0">
+                            <input type="checkbox" class="form-check-input m-0" id="tus-skip-info-future"/>
+                            Hide this info in the future.
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <template id="share_access_restricted" name="Design Access Restricted">
+        <t t-call="website.layout">
+            <div id="wrap" class="oe_structure oe_empty">
+                <div class="container my-5 text-center">
+                    <div class="row justify-content-center my-5">
+                        <div class="col-md-6 border rounded shadow-sm p-5 bg-white">
+                            <div class="mb-4">
+                                <i class="fa fa-lock text-danger" style="font-size: 80px;"/>
+                            </div>
+                            <h2 class="fw-bold mb-3">Access Restricted</h2>
+                            <p class="text-muted mb-4" style="font-size: 16px;">
+                                This shared design is restricted. Only authorized people added by the design owner can access it.
+                            </p>
+                            <t t-if="request.env.user._is_public()">
+                                <p class="mb-4 text-muted">Please log in with the authorized email address to proceed.</p>
+                                <a href="/web/login" class="btn btn-primary btn-lg w-100">Log In</a>
+                            </t>
+                            <t t-else="">
+                                <div class="alert alert-warning mb-4" role="alert" style="font-size: 14px;">
+                                    Logged in as <strong t-esc="request.env.user.email or request.env.user.name"/>.
+                                </div>
+                                <p class="text-danger mb-4" style="font-size: 14px; font-weight: 500;">
+                                    If you need access, please contact the design owner to add your email address.
+                                </p>
+                                <a href="/web/session/logout?redirect=/" class="btn btn-outline-secondary btn-lg w-100 mb-2">Log Out / Switch Account</a>
+                                <a href="/" class="btn btn-primary btn-lg w-100">Go to Homepage</a>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <record id="email_template_design_share_invite" model="mail.template">
+        <field name="name">Design Share: Guest Invitation</field>
+        <field name="model_id" ref="tus_product_personalizer.model_product_design_share_access"/>
+        <field name="subject">Invitation to access shared design: {{ object.share_id.product_id.name or 'Product Design' }}</field>
+        <field name="email_from">{{ object.share_id.partner_id.email or object.env.user.email or 'no-reply@localhost' }}</field>
+        <field name="email_to">{{ object.email }}</field>
+        <field name="body_html" type="html">
+            <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 30px; background-color: #f8fafc; border-radius: 12px; max-width: 600px; margin: auto; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <span style="font-size: 24px; font-weight: bold; color: #4d5038;">Shared Design Invitation</span>
+                </div>
+                <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+                    <p style="font-size: 16px; color: #1e293b; margin-top: 0; line-height: 1.6;">
+                        You have been invited by <strong t-out="object.share_id.partner_id.name or 'a designer'">a designer</strong> to view or collaborate on a product design.
+                    </p>
+                    <p style="font-size: 15px; color: #64748b; margin-bottom: 25px; line-height: 1.6;">
+                        Design: <strong style="color: #0f172a;" t-out="object.share_id.product_id.name">Product Design</strong><br/>
+                        Permission: <strong style="color: #0f172a;" t-out="'Can customize' if object.access_mode == 'edit' else 'Can view only'">Can customize</strong>
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a t-att-href="ctx.get('guest_link')" style="background-color: #4d5038; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(77, 80, 56, 0.2);">
+                            Open Shared Design
+                        </a>
+                    </div>
+                    <p style="font-size: 13px; color: #94a3b8; margin-top: 25px; line-height: 1.5; text-align: center;">
+                        This is a secure private link. Do not share this email with others.
+                    </p>
+                </div>
+                <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #94a3b8;">
+                    Powered by Odoo Product Personalizer
+                </div>
+            </div>
+        </field>
+    </record>
+</odoo>

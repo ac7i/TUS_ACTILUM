@@ -1,0 +1,114 @@
+.modal-dialog:has(.personalizer_container) {
+    max-width: 90% !important;
+}
+.personalizer_design_selection {
+    background-color: #f5f5f5;
+    .right_container {
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 10px;
+        box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+        transition: all 0.3s ease;
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .box_item {
+            border-bottom: 1px solid #dedede;
+        }
+        .add_design_area {
+            width: 35px;
+            height: 35px;
+            border-radius: 5px;
+            background-color: rgba(32, 205, 32, 0.85);
+            &:before {
+                position: absolute;
+                content: "";
+                width: 25px;
+                height: 3px;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                margin: auto;
+                background-color: #fff;
+            }
+            &:after {
+                position: absolute;
+                content: "";
+                width: 3px;
+                height: 25px;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                margin: auto;
+                background-color: #fff;
+            }
+        }
+    }
+    .left-container {
+        .preview-box {
+            border: 1px solid black;
+            height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            .preview_img {
+                position: relative;
+                /* JS sets exact px size based on the uploaded image aspect ratio + stage sizing */
+                width: 394px;
+                height: 394px;
+                max-width: 100%;
+                max-height: 100%;
+                overflow: hidden;
+                display: block;
+                .preview_img_el {
+                    display: block;
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                    user-select: none;
+                    pointer-events: none;
+                }
+            }
+            .canvas_conatiner {
+                position: absolute;
+                inset: 0;
+                user-select: none;
+                &.tus-wizard-drawing-polygon {
+                    cursor: crosshair;
+                    canvas {
+                        cursor: crosshair !important;
+                    }
+                }
+                canvas {
+                    position: absolute;
+                    width: 100%;
+                    height: 100%;
+                    left: 0;
+                    top: 0;
+                    touch-action: none;
+                    user-select: none;
+                    cursor: default;
+                }
+            }
+        }
+    }
+}
+
+.o_form_view .tus-orderline-design-preview {
+    display: block;
+    margin: 8px auto 0;
+    max-width: 100%;
+
+    img {
+        display: block;
+        width: 100%;
+        max-width: 560px;
+        height: auto;
+        object-fit: contain;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
+    }
+}

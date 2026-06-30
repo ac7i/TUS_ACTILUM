@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_inherit_personalizer" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.personalizer</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="website.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='website']" position="inside">
+                <block title="Product Personalizer" id="personalizer_settings">
+                    <setting id="personalizer_swap_setting"
+                             string="Swap Product"
+                             help="Allow users to swap between product variants in the editor">
+                        <field name="personalizer_enable_swap"/>
+                    </setting>
+                    <setting id="personalizer_text_setting"
+                             string="Add Text"
+                             help="Allow users to add and edit text elements in the editor">
+                        <field name="personalizer_enable_text"/>
+                    </setting>
+                    <setting id="personalizer_text_templates_setting"
+                             string="Text Templates"
+                             help="Show ready-to-use SVG text templates in the Text panel">
+                        <field name="personalizer_enable_text_templates"/>
+                    </setting>
+                    <setting id="personalizer_image_setting"
+                             string="Add Image"
+                             help="Allow users to upload and add images in the editor">
+                        <field name="personalizer_enable_image"/>
+                    </setting>
+                    <setting id="personalizer_layers_setting"
+                             string="Manage Layers"
+                             help="Allow users to manage layer ordering in the editor">
+                        <field name="personalizer_enable_layers"/>
+                    </setting>
+                    <setting id="personalizer_shapes_setting"
+                             string="Default Shapes"
+                             help="Allow users to select from default shapes in the editor">
+                        <field name="personalizer_enable_shape"/>
+                    </setting>
+                    <setting id="personalizer_templates_setting"
+                             string="Saved Templates"
+                             help="Allow users to save and load design templates. The Save button in the editor depends on this setting.">
+                        <field name="personalizer_enable_templates"/>
+                    </setting>
+                    <setting id="personalizer_preview_setting"
+                             string="Show Preview"
+                             help="Show the preview button in the editor header">
+                        <field name="personalizer_enable_preview"/>
+                    </setting>
+                    <setting id="personalizer_3d_preview_setting"
+                             string="3D Preview"
+                             help="Enable PBR 3D preview in the designer. Enable it per product on the Print To Web tab.">
+                        <field name="personalizer_enable_3d_preview"/>
+                    </setting>
+                    <setting id="personalizer_download_setting"
+                             string="Download"
+                             help="Show the download button in the editor header">
+                        <field name="personalizer_enable_download"/>
+                    </setting>
+                    <setting id="personalizer_share_setting"
+                             string="Share Design"
+                             help="Show the share button in the editor header to create shareable design links">
+                        <field name="personalizer_enable_share"/>
+                    </setting>
+                    <setting id="personalizer_matrix_setting"
+                             string="Matrix Table"
+                             help="Enable bulk order matrix selection for specific products">
+                        <field name="personalizer_enable_matrix"/>
+                        <div class="content-group" invisible="not personalizer_enable_matrix">
+                            <div class="mt16">
+                                <label for="personalizer_matrix_product_ids" string="Matrix Products" class="o_light_label"/>
+                                <field name="personalizer_matrix_product_ids" widget="many2many_tags" placeholder="Select products..."/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="personalizer_vdp_setting"
+                             string="Variable Data Printing (VDP)"
+                             help="Bulk personalize products from CSV/Excel datasets (e.g. names on mugs)">
+                        <field name="personalizer_enable_vdp"/>
+                        <div class="content-group" invisible="not personalizer_enable_vdp">
+                            <div class="mt16">
+                                <label for="personalizer_vdp_product_ids" string="VDP Products" class="o_light_label"/>
+                                <field name="personalizer_vdp_product_ids" widget="many2many_tags" placeholder="Select products..."/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="personalizer_design_price_setting"
+                             string="Design Area Pricing"
+                             help="Charge additional prices based on used design areas">
+                        <field name="personalizer_enable_design_price"/>
+                        <div class="content-group" invisible="not personalizer_enable_design_price">
+                            <div class="mt16">
+                                <label for="personalizer_design_price_product_ids" string="Pricing Products" class="o_light_label"/>
+                                <field name="personalizer_design_price_product_ids" widget="many2many_tags" placeholder="Select products..."/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="personalizer_ai_setting"
+                             string="AI Image Generator"
+                             help="Generate images from text prompts in the product designer (OpenAI)">
+                        <field name="personalizer_enable_ai"/>
+                        <div class="content-group" invisible="not personalizer_enable_ai">
+                            <div class="mt16">
+                                <label for="personalizer_ai_api_key" string="OpenAI API Key" class="o_light_label"/>
+                                <field name="personalizer_ai_api_key" password="True" placeholder="sk-..."/>
+                            </div>
+                            <div class="mt8 row">
+                                <label for="personalizer_ai_model" string="Model" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_ai_model" class="col-lg-9"/>
+                            </div>
+                            <div class="mt8 row">
+                                <label for="personalizer_ai_image_count" string="Images per click" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_ai_image_count" class="col-lg-3"/>
+                            </div>
+                            <div class="mt8 row">
+                                <label for="personalizer_ai_image_size" string="Size" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_ai_image_size" class="col-lg-9"/>
+                            </div>
+                            <div class="mt8 row">
+                                <label for="personalizer_ai_quality" string="Quality" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_ai_quality" class="col-lg-9"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="personalizer_printing_setting"
+                             string="Printing Methods &amp; Automation"
+                             help="Enable custom printing method configuration and automated MO routing">
+                        <field name="personalizer_enable_printing"/>
+                        <div class="content-group" invisible="not personalizer_enable_printing">
+                            <div class="mt16">
+                                <label for="personalizer_printing_product_ids" string="Printing Products" class="o_light_label"/>
+                                <field name="personalizer_printing_product_ids" widget="many2many_tags" placeholder="Select products..."/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="personalizer_print_color_mode_setting"
+                             string="Print Export Color Mode"
+                             help="CMYK converts exported SVG/AI files to print-ready device-cmyk() colors. RGB keeps screen colors in export files.">
+                        <field name="personalizer_print_color_mode"/>
+                    </setting>
+                </block>
+                <block title="Designer Appearance" id="personalizer_appearance_settings">
+                    <setting id="personalizer_button_color_setting"
+                             string="Button Color"
+                             help="Primary buttons in the designer (Save product, active mode tabs, design areas, etc.)">
+                        <field name="personalizer_button_color" widget="color" class="w-auto m-0"/>
+                    </setting>
+                    <setting id="personalizer_button_text_color_setting"
+                             string="Button Text Color"
+                             help="Text and icons on primary buttons">
+                        <field name="personalizer_button_text_color" widget="color" class="w-auto m-0"/>
+                    </setting>
+                    <setting id="personalizer_text_color_setting"
+                             string="Text Color"
+                             help="Labels, panel titles, and general text in the designer">
+                        <field name="personalizer_text_color" widget="color" class="w-auto m-0"/>
+                    </setting>
+                    <setting id="personalizer_font_setting"
+                             string="Font Style"
+                             help="Font family for the product designer interface">
+                        <field name="personalizer_font_family" class="o_light_label"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

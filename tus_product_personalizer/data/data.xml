@@ -1,0 +1,29 @@
+<odoo>
+    <data noupdate="1">
+        <!-- Define the sequence -->
+        <record id="seq_design_upload" model="ir.sequence">
+            <field name="name">Design Upload Sequence</field>
+            <field name="code">design.upload.sequence</field>
+            <field name="prefix">DSN</field> <!-- Prefix for the sequence -->
+            <field name="padding">5</field> <!-- Number of digits -->
+            <field name="company_id" eval="False" />
+        </record>
+        <!-- Define the Design Area Charge Product -->
+        <record id="product_design_area_charge" model="product.product">
+            <field name="name">Design Area Charge</field>
+            <field name="type">service</field>
+            <field name="lst_price">0.0</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="description_sale">Total surcharge for custom design areas.</field>
+        </record>
+        <record id="product_printing_charge" model="product.product">
+            <field name="name">Printing Charge</field>
+            <field name="type">service</field>
+            <field name="lst_price">0.0</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="description_sale">Printing method surcharge (setup + unit cost).</field>
+        </record>
+    </data>
+</odoo>

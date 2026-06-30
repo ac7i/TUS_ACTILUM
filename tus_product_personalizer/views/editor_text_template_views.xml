@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_editor_text_template_list" model="ir.ui.view">
+        <field name="name">editor.text.template.list</field>
+        <field name="model">editor.text.template</field>
+        <field name="arch" type="xml">
+            <list string="Text Templates" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="preview_image" widget="image" options="{'size': [64, 64]}"/>
+                <field name="name"/>
+                <field name="category"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_editor_text_template_form" model="ir.ui.view">
+        <field name="name">editor.text.template.form</field>
+        <field name="model">editor.text.template</field>
+        <field name="arch" type="xml">
+            <form string="Text Template">
+                <sheet>
+                    <field name="preview_image" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Template name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="category"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="design_data" filename="design_data_filename"/>
+                            <field name="design_data_filename" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Instructions">
+                        <div colspan="2" class="text-muted">
+                            <p>Upload an SVG that uses <code>&lt;text&gt;</code> elements for editable layers.</p>
+                            <p>Decorative shapes (paths) are added as movable objects. Preview image is shown in the designer grid.</p>
+                        </div>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_editor_text_template" model="ir.actions.act_window">
+        <field name="name">Text Templates</field>
+        <field name="res_model">editor.text.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create ready-to-use text templates for the product designer.
+            </p>
+            <p>Upload an SVG file with text layers. Users can click a template in the Text panel to add it to their design.</p>
+        </field>
+    </record>
+
+</odoo>

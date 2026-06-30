@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template id="template" xml:space="preserve">
+
+    <!-- LAYOUT TEMPLATES -->
+    <t t-name="tus_product_personalizer.BackendFabricDialog">
+        <Dialog size="'xl'" header="false" footer="true" contentClass="'personalizer_container'" bodyClass="'personalizer_design_selection'" fullscreen="true">
+            <div class="row">
+                <div class="col-12 col-lg-6 pb-sm-4 pb-lg-0 left-container">
+                    <div class="preview-box w-100">
+                        <div class="preview_img" t-ref="preview_wrapper">
+                            <img class="preview_img_el" t-ref="preview_img" t-att-src="state.image_url" alt="Preview"/>
+                            <div class="canvas_conatiner" t-ref="canvas_design"></div>
+                        </div>
+                    </div>
+                    <p t-if="state.wizardMode === 'draw_polygon'" class="text-muted small mt-2 mb-0 px-1">
+                        Click corners on the mockup. Click the first point again or use <strong>Complete shape</strong> when done.
+                        (<t t-esc="state.drawPointCount"/> points)
+                    </p>
+                </div>
+                <div class="col-12 col-lg-6  right_container px-2">
+                    <div class="d-flex flex-column gap-3 flex-wrap box_item pb-4">
+                        <div class="form-group mb-0">
+                            <h4 class="mb-3">Add Design Area</h4>
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <div
+                                    class="cursor-pointer add_design_area position-relative"
+                                    title="Add rectangle area"
+                                    t-on-click="onAddDesignArea"
+                                />
+                                <button type="button" class="btn btn-primary btn-sm" t-on-click="onStartDrawPolygon">
+                                    Draw custom shape
+                                </button>
+                            </div>
+                            <p class="text-muted small mt-2 mb-0">
+                                Use the green <strong>+</strong> for a rectangle, or <strong>Draw custom shape</strong> to click corners around any blank zone (e.g. phone case with camera cut-out).
+                            </p>
+                        </div>
+                        <div t-if="state.wizardMode === 'draw_polygon'" class="d-flex gap-2 flex-wrap align-items-center">
+                            <button type="button" class="btn btn-success btn-sm" t-on-click="onFinishDrawPolygon">
+                                Complete shape
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" t-on-click="onUndoDrawPoint">
+                                Undo point
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" t-on-click="onCancelDrawPolygon">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-4 flex-wrap align-items-center box_item pb-4 pt-2">
+                        <div class="form-group">
+                            <h6>Image Side</h6>
+                            <select class="form-select" id="image_side" t-on-change="changeSide">
+                                <option value="front" t-att-selected="state.image_side == 'front'">Front</option>
+                                <option value="back" t-att-selected="state.image_side == 'back'">Back</option>
+                                <option value="left" t-att-selected="state.image_side == 'left'">Left</option>
+                                <option value="right" t-att-selected="state.image_side == 'right'">Right</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <h6>Default Unit</h6>
+                            <select class="form-select" id="unit">
+                                <option value="px">px</option>
+                                <option value="inch" selected="1">Inch</option>
+                                <option value="millimeter">Millimeter</option>
+                                <option value="centimeter">Centimeter</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <div class="d-inline-block position-relative opacity-trigger-hover">
+                                <div t-attf-class="d-flex justify-content-between w-100 {{isMobile ? 'o_mobile_controls' : ''}}" aria-atomic="true">
+                                    <FileUploader
+                                            acceptedFileExtensions="'image/*'"
+                                            t-key="props.record.resId"
+                                            onUploaded.bind="onFileUploaded"
+                                        >
+                                        <t t-set-slot="toggler">
+                                            <button
+                                                    class="o_select_file_button btn btn-light m-1 p-1"
+                                                    data-tooltip="Edit"
+                                                    aria-label="Edit">
+                                                <i class="fa fa-pencil fa-fw"/>
+                                                Upload Image
+                                            </button>
+                                        </t>
+                                    </FileUploader>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column gap-4 flex-wrap box_item pb-4 pt-2">
+                        <h4>Actual Design Dimensions</h4>
+                        <div class="form-group d-flex align-items-center gap-3">
+                            <h6 class="w-25 mb-0">Width</h6>
+                            <div class="input-group">
+                                <input type="number" min="0" class="form-control" id="actual_width" />
+                                <span class="input-group-text">inch</span>
+                            </div>
+                        </div>
+                        <div class="form-group d-flex align-items-center gap-3">
+                            <h6 class="w-25 mb-0">Height</h6>
+                            <div class="input-group">
+                                <input type="number" min="0" class="form-control" id="actual_height" />
+                                <span class="input-group-text"><t t-esc="unit" /></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div t-if="state.activeAreaShape === 'rect'" class="d-flex flex-column gap-4 flex-wrap box_item pb-4 pt-2">
+                        <h4>Design Area (Rectangle)</h4>
+                        <div class="form-group d-flex align-items-center gap-3">
+                            <h6 class="w-25 mb-0">Width</h6>
+                            <div class="input-group">
+                                <input type="number" min="0" class="form-control" id="design_width" />
+                                <span class="input-group-text"><t t-esc="unit" /></span>
+                            </div>
+                        </div>
+                        <div class="form-group d-flex align-items-center gap-3">
+                            <h6 class="w-25 mb-0">Height</h6>
+                            <div class="input-group">
+                                <input type="number" min="0" class="form-control" id="design_height" />
+                                <span class="input-group-text">inch</span>
+                            </div>
+                        </div>
+                        <div class="form-group d-flex align-items-center gap-3">
+                            <h6 class="w-25 mb-0">Top</h6>
+                            <input type="number" min="0" class="form-control" id="design_top" />
+                        </div>
+                        <div class="form-group d-flex align-items-center gap-3">
+                            <h6 class="w-25 mb-0">Left</h6>
+                            <input type="number" min="0" class="form-control" id="design_left" />
+                        </div>
+                        <div t-if="state.enableDesignPrice" class="form-group d-flex align-items-center gap-3 mt-3 pt-3 border-top">
+                            <h6 class="w-25 mb-0">Charge Price</h6>
+                            <div class="w-75">
+                                <input type="number" min="0" step="0.01" class="form-control" id="area_price" placeholder="0.00" t-on-change="_syncRectFromInputs"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div t-if="state.activeAreaShape === 'polygon'" class="d-flex flex-column gap-3 flex-wrap box_item pb-4 pt-2">
+                        <h4>Design Area (Custom shape)</h4>
+                        <p class="text-muted small mb-0">
+                            Drag the shape to move it. Use <strong>Edit corners</strong> to adjust individual points.
+                        </p>
+                        <button type="button" class="btn btn-outline-primary btn-sm align-self-start" t-on-click="onEditPolygonVertices">
+                            Edit corners
+                        </button>
+                        <div t-if="state.enableDesignPrice" class="form-group d-flex align-items-center gap-3 mt-2 pt-3 border-top">
+                            <h6 class="w-25 mb-0">Charge Price</h6>
+                            <div class="w-75">
+                                <input type="number" min="0" step="0.01" class="form-control" id="area_price" placeholder="0.00" t-on-change="_syncRectFromInputs"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <t t-set-slot="footer">
+                <div class="d-flex align-items-center justify-content-end w-100 gap-2">
+                    <button class="btn btn-primary" t-on-click="onAdd">Save</button>
+                    <button class="btn btn-secondary" t-on-click="props.close">Cancel</button>
+                </div>
+            </t>
+        </Dialog>
+    </t>
+</template>

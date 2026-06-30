@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_orderline_vdp_record_list" model="ir.ui.view">
+        <field name="name">orderline.vdp.record.list</field>
+        <field name="model">orderline.vdp.record</field>
+        <field name="arch" type="xml">
+            <list string="VDP Records">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="state"/>
+                <field name="design_upload_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_orderline_vdp_record_form" model="ir.ui.view">
+        <field name="name">orderline.vdp.record.form</field>
+        <field name="model">orderline.vdp.record</field>
+        <field name="arch" type="xml">
+            <form string="VDP Record">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="state"/>
+                        <field name="order_line_id"/>
+                        <field name="design_upload_id"/>
+                    </group>
+                    <group string="Row Data">
+                        <field name="row_data" widget="text"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

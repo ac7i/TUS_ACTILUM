@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- Headlines -->
+        <record id="text_template_headlines_make_it" model="editor.text.template">
+            <field name="name">Make It Happen</field>
+            <field name="sequence">10</field>
+            <field name="category">headlines</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-make-it-happen.svg"/>
+            <field name="design_data_filename">headlines-make-it-happen.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-make-it-happen.svg"/>
+        </record>
+
+        <record id="text_template_headlines_own_it" model="editor.text.template">
+            <field name="name">Own Your Moment</field>
+            <field name="sequence">20</field>
+            <field name="category">headlines</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-own-it.svg"/>
+            <field name="design_data_filename">headlines-own-it.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-own-it.svg"/>
+        </record>
+
+        <record id="text_template_headlines_level_up" model="editor.text.template">
+            <field name="name">Level Up</field>
+            <field name="sequence">21</field>
+            <field name="category">headlines</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-level-up.svg"/>
+            <field name="design_data_filename">headlines-level-up.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-level-up.svg"/>
+        </record>
+
+        <record id="text_template_headlines_fearless" model="editor.text.template">
+            <field name="name">Fearless Mindset</field>
+            <field name="sequence">22</field>
+            <field name="category">headlines</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-fearless.svg"/>
+            <field name="design_data_filename">headlines-fearless.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-fearless.svg"/>
+        </record>
+
+        <record id="text_template_headlines_go_get_it" model="editor.text.template">
+            <field name="name">Go Get It</field>
+            <field name="sequence">23</field>
+            <field name="category">headlines</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-go-get-it.svg"/>
+            <field name="design_data_filename">headlines-go-get-it.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/headlines-go-get-it.svg"/>
+        </record>
+
+        <!-- Quotes -->
+        <record id="text_template_quotes_choose_joy" model="editor.text.template">
+            <field name="name">Choose Joy</field>
+            <field name="sequence">30</field>
+            <field name="category">quotes</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-choose-joy.svg"/>
+            <field name="design_data_filename">quotes-choose-joy.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-choose-joy.svg"/>
+        </record>
+
+        <record id="text_template_quotes_rise_repeat" model="editor.text.template">
+            <field name="name">Rise and Repeat</field>
+            <field name="sequence">40</field>
+            <field name="category">quotes</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-rise-repeat.svg"/>
+            <field name="design_data_filename">quotes-rise-repeat.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-rise-repeat.svg"/>
+        </record>
+
+        <record id="text_template_quotes_be_kind" model="editor.text.template">
+            <field name="name">Be Kind</field>
+            <field name="sequence">41</field>
+            <field name="category">quotes</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-be-kind.svg"/>
+            <field name="design_data_filename">quotes-be-kind.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-be-kind.svg"/>
+        </record>
+
+        <record id="text_template_quotes_stay_curious" model="editor.text.template">
+            <field name="name">Stay Curious</field>
+            <field name="sequence">42</field>
+            <field name="category">quotes</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-stay-curious.svg"/>
+            <field name="design_data_filename">quotes-stay-curious.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-stay-curious.svg"/>
+        </record>
+
+        <record id="text_template_quotes_day_one" model="editor.text.template">
+            <field name="name">One Day or Day One</field>
+            <field name="sequence">43</field>
+            <field name="category">quotes</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-day-one.svg"/>
+            <field name="design_data_filename">quotes-day-one.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/quotes-day-one.svg"/>
+        </record>
+
+        <!-- Sports -->
+        <record id="text_template_sports_roster" model="editor.text.template">
+            <field name="name">Team Roster</field>
+            <field name="sequence">50</field>
+            <field name="category">sports</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-team-roster.svg"/>
+            <field name="design_data_filename">sports-team-roster.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-team-roster.svg"/>
+        </record>
+
+        <record id="text_template_sports_play_hard" model="editor.text.template">
+            <field name="name">Play Hard</field>
+            <field name="sequence">60</field>
+            <field name="category">sports</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-play-hard.svg"/>
+            <field name="design_data_filename">sports-play-hard.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-play-hard.svg"/>
+        </record>
+
+        <record id="text_template_sports_jersey_name" model="editor.text.template">
+            <field name="name">Jersey Name &amp; Number</field>
+            <field name="sequence">61</field>
+            <field name="category">sports</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-jersey-name.svg"/>
+            <field name="design_data_filename">sports-jersey-name.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-jersey-name.svg"/>
+        </record>
+
+        <record id="text_template_sports_team_spirit" model="editor.text.template">
+            <field name="name">Team Spirit</field>
+            <field name="sequence">62</field>
+            <field name="category">sports</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-team-spirit.svg"/>
+            <field name="design_data_filename">sports-team-spirit.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-team-spirit.svg"/>
+        </record>
+
+        <record id="text_template_sports_all_star" model="editor.text.template">
+            <field name="name">All Star League</field>
+            <field name="sequence">63</field>
+            <field name="category">sports</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-all-star.svg"/>
+            <field name="design_data_filename">sports-all-star.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/sports-all-star.svg"/>
+        </record>
+
+        <!-- Events -->
+        <record id="text_template_events_celebrate" model="editor.text.template">
+            <field name="name">Celebrate You</field>
+            <field name="sequence">70</field>
+            <field name="category">events</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-celebrate-you.svg"/>
+            <field name="design_data_filename">events-celebrate-you.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-celebrate-you.svg"/>
+        </record>
+
+        <record id="text_template_events_together" model="editor.text.template">
+            <field name="name">Together Always</field>
+            <field name="sequence">80</field>
+            <field name="category">events</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-together-always.svg"/>
+            <field name="design_data_filename">events-together-always.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-together-always.svg"/>
+        </record>
+
+        <record id="text_template_events_happy_birthday" model="editor.text.template">
+            <field name="name">Happy Birthday</field>
+            <field name="sequence">81</field>
+            <field name="category">events</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-happy-birthday.svg"/>
+            <field name="design_data_filename">events-happy-birthday.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-happy-birthday.svg"/>
+        </record>
+
+        <record id="text_template_events_save_date" model="editor.text.template">
+            <field name="name">Save the Date</field>
+            <field name="sequence">82</field>
+            <field name="category">events</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-save-the-date.svg"/>
+            <field name="design_data_filename">events-save-the-date.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-save-the-date.svg"/>
+        </record>
+
+        <record id="text_template_events_new_chapter" model="editor.text.template">
+            <field name="name">New Chapter</field>
+            <field name="sequence">83</field>
+            <field name="category">events</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-new-chapter.svg"/>
+            <field name="design_data_filename">events-new-chapter.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/events-new-chapter.svg"/>
+        </record>
+
+        <!-- Business -->
+        <record id="text_template_business_since" model="editor.text.template">
+            <field name="name">Since Badge</field>
+            <field name="sequence">90</field>
+            <field name="category">business</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-since-badge.svg"/>
+            <field name="design_data_filename">business-since-badge.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-since-badge.svg"/>
+        </record>
+
+        <record id="text_template_business_build" model="editor.text.template">
+            <field name="name">Build Boldly</field>
+            <field name="sequence">100</field>
+            <field name="category">business</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-build-boldly.svg"/>
+            <field name="design_data_filename">business-build-boldly.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-build-boldly.svg"/>
+        </record>
+
+        <record id="text_template_business_your_brand" model="editor.text.template">
+            <field name="name">Your Brand Badge</field>
+            <field name="sequence">101</field>
+            <field name="category">business</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-your-brand.svg"/>
+            <field name="design_data_filename">business-your-brand.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-your-brand.svg"/>
+        </record>
+
+        <record id="text_template_business_premium" model="editor.text.template">
+            <field name="name">Premium Quality</field>
+            <field name="sequence">102</field>
+            <field name="category">business</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-premium-quality.svg"/>
+            <field name="design_data_filename">business-premium-quality.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-premium-quality.svg"/>
+        </record>
+
+        <record id="text_template_business_hustle" model="editor.text.template">
+            <field name="name">Hustle Daily</field>
+            <field name="sequence">103</field>
+            <field name="category">business</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-hustle-daily.svg"/>
+            <field name="design_data_filename">business-hustle-daily.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/business-hustle-daily.svg"/>
+        </record>
+
+        <!-- Script -->
+        <record id="text_template_script_grace" model="editor.text.template">
+            <field name="name">With Grace</field>
+            <field name="sequence">110</field>
+            <field name="category">script</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-with-grace.svg"/>
+            <field name="design_data_filename">script-with-grace.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-with-grace.svg"/>
+        </record>
+
+        <record id="text_template_script_name" model="editor.text.template">
+            <field name="name">Signature Line</field>
+            <field name="sequence">120</field>
+            <field name="category">script</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-your-name.svg"/>
+            <field name="design_data_filename">script-your-name.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-your-name.svg"/>
+        </record>
+
+        <record id="text_template_script_made_love" model="editor.text.template">
+            <field name="name">Made with Love</field>
+            <field name="sequence">121</field>
+            <field name="category">script</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-made-with-love.svg"/>
+            <field name="design_data_filename">script-made-with-love.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-made-with-love.svg"/>
+        </record>
+
+        <record id="text_template_script_thank_you" model="editor.text.template">
+            <field name="name">Thank You</field>
+            <field name="sequence">122</field>
+            <field name="category">script</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-thank-you.svg"/>
+            <field name="design_data_filename">script-thank-you.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-thank-you.svg"/>
+        </record>
+
+        <record id="text_template_script_best_wishes" model="editor.text.template">
+            <field name="name">Best Wishes</field>
+            <field name="sequence">123</field>
+            <field name="category">script</field>
+            <field name="design_data" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-best-wishes.svg"/>
+            <field name="design_data_filename">script-best-wishes.svg</field>
+            <field name="preview_image" type="base64" file="tus_product_personalizer/static/src/data/text_templates/script-best-wishes.svg"/>
+        </record>
+
+    </data>
+</odoo>

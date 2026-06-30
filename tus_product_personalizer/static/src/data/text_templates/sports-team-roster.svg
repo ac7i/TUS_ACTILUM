@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <rect x="60" y="40" width="280" height="120" fill="none" stroke="#111111" stroke-width="2" rx="4"/>
+  <text x="200" y="100" font-family="Montserrat, Arial, sans-serif" font-size="52" font-weight="bold" text-anchor="middle" fill="#111111">ROSTER</text>
+  <text x="200" y="145" font-family="Roboto, Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="#2563eb" letter-spacing="10">TEAM 24</text>
+</svg>

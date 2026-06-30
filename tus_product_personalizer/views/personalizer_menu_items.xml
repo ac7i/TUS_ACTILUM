@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <menuitem id="editor_root_menu"
+              name="Product Editor"
+              sequence="10"
+              web_icon="tus_product_personalizer,static/description/icon.png"
+    />
+
+    <menuitem id="editor_product"
+              name="Product"
+              parent="editor_root_menu"
+              action="sale.product_template_action"
+              sequence="10"
+    />
+
+    <menuitem id="editor_color_palette_menu"
+              name="Color Palette"
+              parent="editor_root_menu"
+              action="editor_color_palette_action"
+              sequence="20"
+    />
+
+    <menuitem id="editor_text_template_menu"
+              name="Text Templates"
+              parent="editor_root_menu"
+              action="action_editor_text_template"
+              sequence="25"
+    />
+
+    <menuitem id="editor_canvas_preset_menu"
+              name="Canvas Size Presets"
+              parent="editor_root_menu"
+              action="action_editor_canvas_preset"
+              sequence="26"
+    />
+
+</odoo>

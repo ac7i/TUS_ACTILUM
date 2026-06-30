@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form View with Color Widget -->
+    <record id="editor_color_palette_form_view" model="ir.ui.view">
+        <field name="name">editor.color.palette.form</field>
+        <field name="model">editor.color.palette</field>
+        <field name="arch" type="xml">
+            <form string="Color Palette">
+                <sheet>
+                    <group>
+                        <group string="Screen Preview (RGB)">
+                            <field name="name"/>
+                            <field name="sequence"/>
+                            <field name="color_code" widget="color" string="Color"
+                                   readonly="use_manual_cmyk"/>
+                            <field name="color_code" string="Hex Code"
+                                   readonly="use_manual_cmyk"/>
+                            <div class="text-muted" colspan="2" invisible="not use_manual_cmyk">
+                                Hex preview is calculated from your CMYK values below.
+                                Compare the swatch with your print reference to verify the conversion.
+                            </div>
+                            <field name="is_out_of_gamut" readonly="1"
+                                   invisible="use_manual_cmyk"/>
+                        </group>
+                        <group string="Print Production (CMYK)">
+                            <field name="use_manual_cmyk"/>
+                            <field name="pantone_code"/>
+                            <field name="c_cyan" readonly="not use_manual_cmyk"/>
+                            <field name="c_magenta" readonly="not use_manual_cmyk"/>
+                            <field name="c_yellow" readonly="not use_manual_cmyk"/>
+                            <field name="c_key" readonly="not use_manual_cmyk"/>
+                            <field name="cmyk_display" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Tree View with Color Display -->
+    <record id="editor_color_palette_tree_view" model="ir.ui.view">
+        <field name="name">editor.color.palette.tree</field>
+        <field name="model">editor.color.palette</field>
+        <field name="arch" type="xml">
+            <list string="Color Palette">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="color_code" widget="color"/>
+                <field name="color_code" string="Hex"/>
+                <field name="cmyk_display" string="CMYK / Pantone"/>
+                <field name="is_out_of_gamut" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Kanban View with Color Preview -->
+    <record id="editor_color_palette_kanban_view" model="ir.ui.view">
+        <field name="name">editor.color.palette.kanban</field>
+        <field name="model">editor.color.palette</field>
+        <field name="arch" type="xml">
+            <kanban string="Color Palette">
+                <field name="name"/>
+                <field name="color_code"/>
+                <field name="cmyk_display"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_card">
+                            <div class="oe_kanban_content">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div style="width: 50px; height: 50px; border-radius: 8px; border: 2px solid #ddd; margin-bottom: 10px;"
+                                             t-attf-style="background-color: #{record.color_code.raw_value}"/>
+                                    </div>
+                                    <div class="col-6">
+                                        <strong><field name="name"/></strong>
+                                        <div class="text-muted">
+                                            <field name="color_code"/>
+                                        </div>
+                                        <div class="text-muted small">
+                                            <field name="cmyk_display"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="editor_color_palette_action" model="ir.actions.act_window">
+        <field name="name">Color Palette</field>
+        <field name="res_model">editor.color.palette</field>
+        <field name="view_mode">list,form,kanban</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first color palette entry!
+            </p>
+            <p>
+                Define screen RGB colors for the designer and CMYK values for print production.
+            </p>
+        </field>
+    </record>
+
+</odoo>

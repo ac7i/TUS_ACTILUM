@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <!-- Product variant full form — editor widget for variant overrides -->
+    <record id="tus_product_normal_form_view_1" model="ir.ui.view">
+        <field name="name">tus.product.product.print2web.form.inherit</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <notebook position="inside">
+                <page string="Print To Web" name="print2web_variant">
+                    <group>
+                        <group>
+                            <field name="is_views_customized" readonly="1" widget="boolean" invisible="1"/>
+                        </group>
+                    </group>
+                    <div invisible="is_views_customized"
+                         class="alert alert-info" role="alert">
+                        This variant inherits views from the product template.
+                        Click the button below to copy the template configuration,
+                        then edit the thumbnail image on any row.
+                        <br/><br/>
+                        <button name="action_copy_views_from_template"
+                                type="object"
+                                string="Copy from Template &amp; Customize"
+                                class="btn btn-primary"/>
+                    </div>
+                    <button name="action_reset_views_to_template"
+                            type="object"
+                            string="Reset to Template"
+                            class="btn btn-secondary"
+                            invisible="not is_views_customized"
+                            confirm="This will delete all custom views for this variant and revert to the template configuration. Continue?"/>
+                    <field name="variant_view_ids" widget="editor_product_ids">
+                        <list string="Views">
+                            <field name="title" />
+                            <field name="thumbnail" widget="image" options="{'size': [64, 64]}" />
+                            <field name="design_areas_json" widget="json" column_invisible="1" />
+                        </list>
+                        <form string="View">
+                            <sheet>
+                                <group>
+                                    <group>
+                                        <field name="title" />
+                                        <field name="thumbnail" widget="image" />
+                                        <field name="stage_width" />
+                                        <field name="stage_height" />
+                                        <field name="image_width" />
+                                        <field name="image_height" />
+                                    </group>
+                                </group>
+                            </sheet>
+                        </form>
+                    </field>
+                </page>
+            </notebook>
+        </field>
+    </record>
+
+    <!-- Product variant quick-edit form — editor widget for variant overrides -->
+    <record id="product_variant_easy_edit_view_inherit" model="ir.ui.view">
+        <field name="name">product</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_variant_easy_edit_view" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <field name="is_views_customized" readonly="1" widget="boolean" invisible="1"/>
+                <div invisible="is_views_customized"
+                         class="alert alert-info" role="alert">
+                        This variant inherits views from the product template.
+                        Click the button below to copy the template configuration,
+                        then edit the thumbnail image on any row.
+                        <br/><br/>
+                        <button name="action_copy_views_from_template"
+                                type="object"
+                                string="Copy from Template &amp; Customize"
+                                class="btn btn-primary"/>
+                    </div>
+                    <button name="action_reset_views_to_template"
+                            type="object"
+                            string="Reset to Template"
+                            class="btn btn-secondary"
+                            invisible="not is_views_customized"
+                            confirm="This will delete all custom views for this variant and revert to the template configuration. Continue?"/>
+                <group string="Print To Web">
+                    <field name="variant_view_ids" nolabel="1" widget="editor_product_ids">
+                        <list string="Views">
+                            <field name="title" />
+                            <field name="thumbnail" widget="image" options="{'size': [64, 64]}" />
+                            <field name="design_areas_json" widget="json" column_invisible="1" />
+                        </list>
+                        <form string="View">
+                            <sheet>
+                                <group>
+                                    <group>
+                                        <field name="title" />
+                                        <field name="thumbnail" widget="image" />
+                                        <field name="stage_width" />
+                                        <field name="stage_height" />
+                                        <field name="image_width" />
+                                        <field name="image_height" />
+                                    </group>
+                                </group>
+                            </sheet>
+                        </form>
+                    </field>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Product template form — master views with editor widget -->
+    <record id="view_product_template_inherit" model="ir.ui.view">
+        <field name="name">product template</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view" />
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='variants']" position="after">
+                <page name="print2web" string="Print To Web">
+                    <field name="show_printing_method_config" invisible="1"/>
+                    <field name="show_3d_preview_config" invisible="1"/>
+                    <field name="show_vdp_config" invisible="1"/>
+                    <group string="Empty Canvas">
+                        <field name="empty_canvas"/>
+                        <field name="empty_canvas_allow_custom" invisible="not empty_canvas"/>
+                        <field name="empty_canvas_preset_ids" widget="many2many_tags"
+                               invisible="not empty_canvas"
+                               options="{'no_create': True}"/>
+                        <field name="empty_canvas_custom_min" invisible="not empty_canvas or not empty_canvas_allow_custom"/>
+                        <field name="empty_canvas_custom_max" invisible="not empty_canvas or not empty_canvas_allow_custom"/>
+                        <field name="empty_canvas_custom_unit" invisible="not empty_canvas or not empty_canvas_allow_custom"/>
+                        <field name="empty_canvas_enable_design_templates" invisible="not empty_canvas"/>
+                    </group>
+                    <div invisible="not empty_canvas" class="alert alert-info" role="alert">
+                        Empty Canvas mode is enabled. Customers choose a canvas size on the product page.
+                        Print-to-Web views are not used. Design templates are optional and controlled above.
+                    </div>
+                    <group string="3D Preview" invisible="not show_3d_preview_config">
+                        <field name="personalizer_enable_3d_preview"/>
+                    </group>
+                    <group string="Variable Data Printing" invisible="not show_vdp_config or empty_canvas">
+                        <field name="personalizer_enable_vdp"/>
+                    </group>
+                    <group string="Printing Configurations" invisible="not show_printing_method_config or empty_canvas">
+                        <field name="allowed_printing_method_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                    </group>
+                    <field name="views" widget="editor_product_ids" invisible="empty_canvas">
+                        <list string="Views">
+                            <field name="title" />
+                            <field name="thumbnail" widget="image" options="{'size': [64, 64]}" />
+                            <field name="design_areas_json" widget="json" column_invisible="1" />
+                        </list>
+                        <form string="View">
+                            <sheet>
+                                <group>
+                                    <group>
+                                        <field name="title" />
+                                        <field name="thumbnail" widget="image" />
+                                        <field name="stage_width" />
+                                        <field name="stage_height" />
+                                        <field name="image_width" />
+                                        <field name="image_height" />
+                                    </group>
+                                </group>
+                            </sheet>
+                        </form>
+                    </field>
+                </page>
+                <page name="design_templates" string="Design Templates" invisible="not empty_canvas">
+                    <button name="action_open_design_template_import"
+                            type="object"
+                            string="Import Template"
+                            class="btn-primary mb-2"/>
+                    <button name="action_open_design_template_sheet_import"
+                            type="object"
+                            string="Import from Excel"
+                            class="btn-secondary mb-2 ms-2"/>
+                    <field name="design_template_ids" context="{'default_product_tmpl_id': id}">
+                        <list string="Templates" editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="preview_image" widget="image" options="{'size': [64, 64]}"/>
+                            <field name="name"/>
+                            <field name="design_format"/>
+                            <field name="is_default"/>
+                            <field name="active"/>
+                        </list>
+                        <form string="Design Template">
+                            <group>
+                                <group>
+                                    <field name="name"/>
+                                    <field name="preview_image" widget="image"/>
+                                    <field name="design_format"/>
+                                    <field name="is_default"/>
+                                    <field name="active"/>
+                                </group>
+                                <group>
+                                    <field name="design_data" filename="design_data_filename"/>
+                                    <field name="design_data_filename" invisible="1"/>
+                                    <field name="layer_metadata" widget="json"/>
+                                </group>
+                            </group>
+                        </form>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

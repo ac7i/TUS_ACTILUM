@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 150">
+  <text x="200" y="65" font-family="Libre Baskerville, Georgia, serif" font-size="28" text-anchor="middle" fill="#666666">stay</text>
+  <text x="200" y="110" font-family="Libre Baskerville, Georgia, serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#111111">Curious</text>
+  <line x1="130" y1="130" x2="270" y2="130" stroke="#111111" stroke-width="1"/>
+</svg>

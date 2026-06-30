@@ -1,0 +1,128 @@
+.tus-empty-canvas-mode {
+    .main_wrapper .product-stage {
+        align-items: center;
+        justify-content: center;
+    }
+
+    .main_wrapper .image_preview_box.tus-empty-canvas-stage {
+        border: 1px solid #d1d5db;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        display: block !important;
+        width: auto !important;
+        height: auto !important;
+        max-height: none !important;
+        flex: 0 0 auto;
+        box-sizing: border-box;
+    }
+
+    .main_wrapper .image_preview_box.tus-empty-canvas-stage .main_canvas_img {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+    }
+
+    .main_wrapper .image_preview_box.tus-empty-canvas-stage .canvas_container {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .design-area.tus-empty-canvas-area {
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        outline: 1px dashed rgba(17, 24, 39, 0.2);
+        outline-offset: -1px;
+
+        .canvas-container {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    }
+
+    .tus-empty-canvas-stage-footer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 12px;
+        padding: 0 12px 4px;
+        text-align: center;
+    }
+
+    .tus-empty-canvas-stage-footer .tus-empty-canvas-size-label {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: #374151;
+    }
+
+    .tus-empty-canvas-stage-footer .tus-empty-canvas-bg-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        padding: 6px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 999px;
+        background: #fff;
+        cursor: pointer;
+    }
+
+    .tus-empty-canvas-stage-footer .tus-empty-canvas-bg-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #4b5563;
+        user-select: none;
+    }
+
+    .tus-empty-canvas-stage-footer .tus-empty-canvas-bg-input {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 1px solid #d1d5db;
+        border-radius: 50%;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .canvas-thumb.tus-empty-canvas-tab-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 6px;
+        background: #fff;
+        border: 1px solid #d1d5db;
+        font-size: 10px;
+        color: #374151;
+    }
+}
+
+.tus-empty-canvas-picker {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fafafa;
+
+    .tus-empty-canvas-picker-title {
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .tus-empty-canvas-side-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+}

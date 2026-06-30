@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 160">
+  <text x="200" y="70" font-family="Brush Script MT, cursive" font-size="48" text-anchor="middle" fill="#111111">Your Name</text>
+  <line x1="100" y1="100" x2="300" y2="100" stroke="#111111" stroke-width="1"/>
+  <text x="200" y="135" font-family="Roboto, Arial, sans-serif" font-size="12" text-anchor="middle" fill="#999999" letter-spacing="4">SIGN HERE</text>
+</svg>

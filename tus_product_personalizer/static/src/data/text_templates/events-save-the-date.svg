@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <rect x="80" y="30" width="240" height="140" fill="none" stroke="#111111" stroke-width="1"/>
+  <text x="200" y="75" font-family="Libre Baskerville, Georgia, serif" font-size="22" text-anchor="middle" fill="#666666" letter-spacing="4">SAVE THE</text>
+  <text x="200" y="120" font-family="Libre Baskerville, Georgia, serif" font-size="40" font-weight="bold" text-anchor="middle" fill="#111111">DATE</text>
+  <text x="200" y="155" font-family="Roboto, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#888888" letter-spacing="3">AUGUST 15, 2026</text>
+</svg>

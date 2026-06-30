@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Printing Method List View -->
+    <record id="product_printing_method_view_tree" model="ir.ui.view">
+        <field name="name">product.printing.method.view.tree</field>
+        <field name="model">product.printing.method</field>
+        <field name="arch" type="xml">
+            <list string="Printing Methods" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="setup_cost"/>
+                <field name="unit_cost"/>
+                <field name="work_center_id"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Printing Method Action -->
+    <record id="product_printing_method_action" model="ir.actions.act_window">
+        <field name="name">Printing Methods</field>
+        <field name="res_model">product.printing.method</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Printing Method
+            </p>
+            <p>
+                Configure printing methods (e.g. DTG, Screen Print, Embroidery) with setup costs and unit costs.
+            </p>
+        </field>
+    </record>
+
+    <!-- Printing Method Menu Item -->
+    <menuitem id="product_printing_method_menu"
+              name="Printing Methods"
+              parent="editor_root_menu"
+              action="product_printing_method_action"
+              sequence="30"
+    />
+
+    <!-- MRP Production Form View Inheritance -->
+    <record id="mrp_production_form_view_inherit" model="ir.ui.view">
+        <field name="name">mrp.production.form.view.inherit</field>
+        <field name="model">mrp.production</field>
+        <field name="inherit_id" ref="mrp.mrp_production_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='user_id']" position="after">
+                <field name="printing_method_id" widget="many2one" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
