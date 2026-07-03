@@ -71,6 +71,15 @@ class ProductTemplate(models.Model):
         string="Canvas Size Presets",
         help="Presets offered for this product. Leave empty to offer all active presets.",
     )
+    empty_canvas_option_ids = fields.Many2many(
+        "editor.canvas.product.option",
+        "product_template_empty_canvas_option_rel",
+        "product_tmpl_id",
+        "option_id",
+        string="Canvas Product Options",
+        help="Finish, print quality, print mode, and machining options for this product. "
+        "Leave empty to offer all active options.",
+    )
     empty_canvas_custom_min = fields.Float(string="Custom Min Size")
     empty_canvas_custom_max = fields.Float(string="Custom Max Size")
     empty_canvas_custom_unit = fields.Selection(

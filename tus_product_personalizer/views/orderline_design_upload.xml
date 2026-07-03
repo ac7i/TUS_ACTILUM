@@ -6,11 +6,10 @@
             <field name="model">orderline.design.upload</field>
             <field name="arch" type="xml">
                 <list string="Uploaded Design">
-                    <field name="name" />
-                    <field name="order_id" />
-                    <field name="order_line" />
-                    <field name="uploaded_type" />
-                    <field name="design_svg" column_invisible="1"/>
+                    <field name="name"/>
+                    <field name="order_id"/>
+                    <field name="order_line"/>
+                    <field name="uploaded_type"/>
                 </list>
             </field>
         </record>
@@ -38,56 +37,72 @@
                                 invisible="not uploaded_attachment"/>
                     </header>
                     <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
                         <group>
-                            <group>
-                                <field name="name" />
-                                <field name="order_id" />
-                                <field name="order_line" />
+                            <group string="Order">
+                                <field name="order_id" readonly="1"/>
+                                <field name="order_line" readonly="1"/>
+                                <field name="uploaded_type" readonly="1"/>
                             </group>
-                            <group>
-                                <field name="uploaded_type" />
-                                <field name="print_width" />
-                                <field name="print_height" />
-                                <field name="print_unit" />
-                                <field name="canvas_background_color" widget="color"/>
-                                <field name="finish_varnish_type"/>
-                                <field name="finish_relief_mm"/>
-                                <field name="uploaded_attachment" filename="name" />
-                                <field name="uploaded_attachment_rel"
-                                       widget="image"
-                                       class="tus-orderline-design-preview"/>
-                                <field name="design_svg" invisible="1"/>
-                                <field name="design_ai" invisible="1"/>
+                            <group string="Print Size">
+                                <label for="print_width" string="Dimensions"/>
+                                <div class="o_row">
+                                    <field name="print_width" readonly="1" class="oe_inline"/>
+                                    <span>×</span>
+                                    <field name="print_height" readonly="1" class="oe_inline"/>
+                                    <field name="print_unit" readonly="1" class="oe_inline"/>
+                                </div>
+                                <field name="canvas_background_color" widget="color" readonly="1"/>
+                                <field name="empty_canvas_margin_mm" readonly="1"/>
+                                <field name="finish_varnish_type" readonly="1"/>
+                                <field name="finish_relief_mm" readonly="1"/>
                             </group>
                         </group>
-                        <group>
-                            <field name="design_ids" readonly="1">
-                                    <list>
-                                        <field name="tus_finish_effect"/>
-                                        <field name="tus_foil_metal"
-                                               invisible="tus_finish_effect not in ('foil', 'foil_emboss')"/>
-                                        <field name="tus_relief_mm"/>
-                                        <field name="tus_varnish_type"/>
-                                        <field name="imprint_design_attribute" widget="json"/>
-                                        <field name="imprint_image" widget="image"/>
-                                        <field name="imprint_width"/>
-                                        <field name="imprint_width_uom"/>
-                                        <field name="imprint_height"/>
-                                        <field name="imprint_height_uom"/>
-                                        <field name="imprint_colors"/>
-                                        <field name="imprint_cmyk"/>
-                                        <field name="printable_color_id"/>
+                        <group string="Design Preview">
+                            <field name="uploaded_attachment_rel"
+                                   widget="image"
+                                   readonly="1"
+                                   nolabel="1"
+                                   class="tus-orderline-design-preview"/>
+                            <field name="uploaded_attachment" invisible="1"/>
+                            <field name="design_svg" invisible="1"/>
+                            <field name="design_ai" invisible="1"/>
+                        </group>
+                        <notebook>
+                            <page string="Imprint Elements" name="imprint_elements">
+                                <field name="design_ids" readonly="1" nolabel="1">
+                                    <list create="0" delete="0" edit="0" open_form_view="1">
+                                        <field name="element_label" string="Element"/>
+                                        <field name="tus_finish_effect" string="Finish" optional="show"/>
+                                        <field name="tus_foil_metal" string="Foil" optional="hide"/>
+                                        <field name="size_display" string="Size"/>
+                                        <field name="color_display" string="Colors"/>
+                                        <field name="tus_varnish_type" string="Varnish" optional="hide"/>
+                                        <field name="tus_relief_mm" string="Relief (mm)" optional="hide"/>
+                                        <field name="imprint_image" column_invisible="1"/>
+                                        <field name="imprint_design_attribute" column_invisible="1"/>
+                                        <field name="imprint_width" column_invisible="1"/>
+                                        <field name="imprint_height" column_invisible="1"/>
+                                        <field name="imprint_width_uom" column_invisible="1"/>
+                                        <field name="imprint_height_uom" column_invisible="1"/>
+                                        <field name="imprint_colors" column_invisible="1"/>
+                                        <field name="imprint_cmyk" column_invisible="1"/>
+                                        <field name="printable_color_id" column_invisible="1"/>
                                         <button name="action_download_imprint"
                                                 type="object"
-                                                string="Download PNG"
+                                                string="PNG"
                                                 icon="fa-download"
                                                 invisible="not imprint_image"/>
                                         <button name="action_download_imprint_svg"
                                                 type="object"
-                                                string="Download SVG"
+                                                string="SVG"
                                                 icon="fa-download"/>
                                     </list>
-                                    <form string="Imprint Design">
+                                    <form string="Imprint Element">
                                         <header>
                                             <button name="action_download_imprint"
                                                     type="object"
@@ -98,30 +113,54 @@
                                                     string="Download SVG"
                                                     class="btn-primary"/>
                                         </header>
-                                        <group>
+                                        <sheet>
+                                            <div class="oe_title">
+                                                <h1>
+                                                    <field name="element_label" readonly="1"/>
+                                                </h1>
+                                            </div>
                                             <group>
-                                                <field name="imprint_image" widget="image"/>
-                                                <field name="imprint_design_attribute" invisible="1"/>
-                                                <field name="imprint_design_display" widget="text" readonly="1"/>
-                                                <field name="tus_finish_effect"/>
-                                                <field name="tus_foil_metal"
-                                               invisible="tus_finish_effect not in ('foil', 'foil_emboss')"/>
-                                                <field name="tus_relief_mm"/>
-                                                <field name="tus_varnish_type"/>
-                                                <field name="imprint_width"/>
-                                                <field name="imprint_width_uom"/>
+                                                <group string="Preview">
+                                                    <field name="imprint_image"
+                                                           widget="image"
+                                                           readonly="1"
+                                                           nolabel="1"
+                                                           class="tus-imprint-preview"/>
+                                                </group>
+                                                <group string="Print Specs">
+                                                    <field name="tus_finish_effect" readonly="1"/>
+                                                    <field name="tus_foil_metal" readonly="1"
+                                                           invisible="tus_finish_effect not in ('foil', 'foil_emboss')"/>
+                                                    <field name="tus_relief_mm" readonly="1"/>
+                                                    <field name="tus_varnish_type" readonly="1"/>
+                                                    <label for="imprint_width" string="Dimensions"/>
+                                                    <div class="o_row">
+                                                        <field name="imprint_width" readonly="1" class="oe_inline"/>
+                                                        <span>×</span>
+                                                        <field name="imprint_height" readonly="1" class="oe_inline"/>
+                                                        <field name="imprint_width_uom" readonly="1" class="oe_inline"/>
+                                                    </div>
+                                                    <field name="imprint_colors" readonly="1"/>
+                                                    <field name="imprint_cmyk" readonly="1"/>
+                                                    <field name="printable_color_id" readonly="1"/>
+                                                </group>
                                             </group>
-                                            <group>
-                                                <field name="imprint_height"/>
-                                                <field name="imprint_height_uom"/>
-                                                <field name="imprint_colors"/>
-                                                <field name="imprint_cmyk"/>
-                                                <field name="printable_color_id"/>
-                                            </group>
-                                        </group>
+                                            <notebook groups="base.group_no_one">
+                                                <page string="Technical JSON" name="technical_json">
+                                                    <field name="imprint_design_attribute" invisible="1"/>
+                                                    <field name="imprint_design_display"
+                                                           widget="ace"
+                                                           options="{'mode': 'javascript'}"
+                                                           readonly="1"
+                                                           nolabel="1"
+                                                           class="tus-imprint-json-display"/>
+                                                </page>
+                                            </notebook>
+                                        </sheet>
                                     </form>
                                 </field>
-                        </group>
+                            </page>
+                        </notebook>
                     </sheet>
                 </form>
             </field>

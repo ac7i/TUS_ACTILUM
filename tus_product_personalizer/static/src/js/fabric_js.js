@@ -2185,8 +2185,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         let br = obj.getBoundingRect(true, true);
         let changed = false;
 
-        const maxW = cw;
-        const maxH = ch;
+        const maxW = canvas._tusPrintableInset ? canvas._tusPrintableInset.width : cw;
+        const maxH = canvas._tusPrintableInset ? canvas._tusPrintableInset.height : ch;
 
         if (!vertOnly && br.width > maxW) {
             const factorX = maxW / br.width;
@@ -2210,20 +2210,25 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         let left = obj.left;
         let top = obj.top;
 
-        if (br.left < 0) {
-            left -= br.left;
+        const boundsLeft = canvas._tusPrintableInset?.left ?? 0;
+        const boundsTop = canvas._tusPrintableInset?.top ?? 0;
+        const boundsRight = boundsLeft + (canvas._tusPrintableInset?.width ?? cw);
+        const boundsBottom = boundsTop + (canvas._tusPrintableInset?.height ?? ch);
+
+        if (br.left < boundsLeft) {
+            left -= br.left - boundsLeft;
             changed = true;
         }
-        if (br.top < 0) {
-            top -= br.top;
+        if (br.top < boundsTop) {
+            top -= br.top - boundsTop;
             changed = true;
         }
-        if (br.left + br.width > cw) {
-            left -= br.left + br.width - cw;
+        if (br.left + br.width > boundsRight) {
+            left -= br.left + br.width - boundsRight;
             changed = true;
         }
-        if (br.top + br.height > ch) {
-            top -= br.top + br.height - ch;
+        if (br.top + br.height > boundsBottom) {
+            top -= br.top + br.height - boundsBottom;
             changed = true;
         }
 
@@ -5655,6 +5660,22 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             for (const side of Object.keys(bundle.empty_canvas.background_by_side)) {
                 this._applyEmptyCanvasBackground?.(side);
             }
+        }
+
+        if (bundle.empty_canvas?.margins_by_side && this.emptyCanvasMarginBySide) {
+            Object.assign(this.emptyCanvasMarginBySide, bundle.empty_canvas.margins_by_side);
+            for (const side of Object.keys(bundle.empty_canvas.margins_by_side)) {
+                this.emptyCanvasMarginBySide[side] = this._clampEmptyCanvasMarginMm?.(
+                    this.emptyCanvasMarginBySide[side],
+                    side
+                ) ?? 0;
+            }
+            this._syncEmptyCanvasMarginsHiddenInput?.();
+            for (const side of Object.keys(bundle.empty_canvas.margins_by_side)) {
+                this._applyEmptyCanvasMarginsForSide?.(side);
+                this._syncEmptyCanvasFooterForSide?.(side);
+            }
+            this._syncEmptyCanvasChromeUi?.();
         }
 
         // Trigger a layout update

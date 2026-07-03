@@ -8,6 +8,86 @@ import { _t } from "@web/core/l10n/translation";
 
 const EMPTY_CANVAS_SIDES = new Set(["front", "back", "both"]);
 
+function selectionOrDefault(value, allowed, fallback) {
+    if (!allowed || !allowed.size) {
+        return value || fallback;
+    }
+    return allowed.has(value) ? value : fallback;
+}
+
+function populateSelectOptions(selectEl, options, defaultValue) {
+    if (!selectEl) {
+        return;
+    }
+    selectEl.replaceChildren();
+    for (const option of options || []) {
+        const el = document.createElement("option");
+        el.value = option.value;
+        el.textContent = option.label;
+        if (option.value === defaultValue) {
+            el.selected = true;
+        }
+        selectEl.appendChild(el);
+    }
+}
+
+function buildAllowedKeys(productOptions) {
+    const finishOptions = productOptions.finish?.options || [];
+    const qualityOptions = productOptions.print_quality?.options || [];
+    const modeOptions = productOptions.print_mode?.options || [];
+    const machiningOptions = productOptions.machining || [];
+    return {
+        finish: new Set(finishOptions.map((option) => option.value)),
+        print_quality: new Set(qualityOptions.map((option) => option.value)),
+        print_mode: new Set(modeOptions.map((option) => option.value)),
+        machining: new Set(machiningOptions.map((option) => option.key)),
+        defaults: {
+            finish: productOptions.finish?.default || finishOptions[0]?.value || "",
+            print_quality: productOptions.print_quality?.default || qualityOptions[0]?.value || "",
+            print_mode: productOptions.print_mode?.default || modeOptions[0]?.value || "",
+        },
+    };
+}
+
+function readEmptyCanvasProductOptions(root, allowedKeys) {
+    const scope = root || document;
+    const finish = scope.querySelector(".tus-empty-canvas-finish-select")?.value;
+    const printQuality = scope.querySelector(".tus-empty-canvas-print-quality-select")?.value;
+    const printMode = scope.querySelector(".tus-empty-canvas-print-mode-select")?.value;
+    const machiningSelection = [];
+    for (const input of scope.querySelectorAll(".tus-empty-canvas-machining-option")) {
+        if (input.checked && allowedKeys.machining.has(input.dataset.code)) {
+            machiningSelection.push(input.dataset.code);
+        }
+    }
+    const defaults = allowedKeys.defaults || {};
+    return {
+        finish: selectionOrDefault(finish, allowedKeys.finish, defaults.finish),
+        print_quality: selectionOrDefault(
+            printQuality,
+            allowedKeys.print_quality,
+            defaults.print_quality
+        ),
+        print_mode: selectionOrDefault(printMode, allowedKeys.print_mode, defaults.print_mode),
+        machining_selection: machiningSelection,
+        machining_folding: machiningSelection.includes("folding"),
+        machining_cutting: machiningSelection.includes("cutting"),
+        machining_corner_drilling: machiningSelection.includes("corner_drilling"),
+    };
+}
+
+function appendEmptyCanvasProductOptionsToParams(params, options) {
+    params.set("canvas_finish", options.finish);
+    params.set("canvas_print_quality", options.print_quality);
+    params.set("canvas_print_mode", options.print_mode);
+    if (options.machining_selection?.length) {
+        params.set("machining_selection", options.machining_selection.join(","));
+    }
+    params.set("machining_folding", options.machining_folding ? "1" : "0");
+    params.set("machining_cutting", options.machining_cutting ? "1" : "0");
+    params.set("machining_corner_drilling", options.machining_corner_drilling ? "1" : "0");
+}
+
 patch(WebsiteSale.prototype, {
     setup() {
         super.setup();
@@ -44,10 +124,14 @@ patch(WebsiteSale.prototype, {
                 product_tmpl_id: productTmplId,
             });
             this._emptyCanvasConfig = data || {};
+            this._emptyCanvasAllowedKeys = buildAllowedKeys(data.product_options || {});
             this._renderEmptyCanvasPresets(data.presets || []);
+            this._renderEmptyCanvasProductOptions(data.product_options || {});
             this._syncEmptyCanvasCustomVisibility();
         } catch (err) {
             console.warn("Could not load canvas presets:", err);
+            this._emptyCanvasAllowedKeys = buildAllowedKeys({});
+            this._renderEmptyCanvasProductOptions({});
         }
     },
 
@@ -76,6 +160,47 @@ patch(WebsiteSale.prototype, {
             customOption.textContent = _t("Custom size");
             select.appendChild(customOption);
         }
+    },
+
+    _renderEmptyCanvasMachiningOptions(machiningOptions) {
+        const container = this.el.querySelector(".tus-empty-canvas-machining-options");
+        if (!container) {
+            return;
+        }
+        container.replaceChildren();
+        for (const option of machiningOptions || []) {
+            const label = document.createElement("label");
+            label.className = "tus-ecp-chip";
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.className = "tus-empty-canvas-machining-option";
+            input.dataset.code = option.key;
+            const text = document.createElement("span");
+            text.textContent = option.label;
+            label.appendChild(input);
+            label.appendChild(text);
+            container.appendChild(label);
+        }
+    },
+
+    _renderEmptyCanvasProductOptions(productOptions) {
+        const allowedKeys = this._emptyCanvasAllowedKeys || buildAllowedKeys(productOptions);
+        populateSelectOptions(
+            this.el.querySelector(".tus-empty-canvas-finish-select"),
+            productOptions.finish?.options || [],
+            productOptions.finish?.default || allowedKeys.defaults.finish
+        );
+        populateSelectOptions(
+            this.el.querySelector(".tus-empty-canvas-print-quality-select"),
+            productOptions.print_quality?.options || [],
+            productOptions.print_quality?.default || allowedKeys.defaults.print_quality
+        );
+        populateSelectOptions(
+            this.el.querySelector(".tus-empty-canvas-print-mode-select"),
+            productOptions.print_mode?.options || [],
+            productOptions.print_mode?.default || allowedKeys.defaults.print_mode
+        );
+        this._renderEmptyCanvasMachiningOptions(productOptions.machining || []);
     },
 
     onEmptyCanvasPresetChange(ev) {
@@ -142,7 +267,15 @@ patch(WebsiteSale.prototype, {
             unit = this.el.querySelector("#tusEmptyCanvasUnit")?.value || "in";
         }
 
-        return { width, height, unit, sides, presetId };
+        const allowedKeys = this._emptyCanvasAllowedKeys || buildAllowedKeys({});
+        return {
+            width,
+            height,
+            unit,
+            sides,
+            presetId,
+            ...readEmptyCanvasProductOptions(this.el, allowedKeys),
+        };
     },
 
     _validateEmptyCanvasSelection(selection) {
@@ -154,6 +287,9 @@ patch(WebsiteSale.prototype, {
         }
         if (!EMPTY_CANVAS_SIDES.has(selection.sides)) {
             return _t("Please choose a print side.");
+        }
+        if (!selection.finish || !selection.print_quality || !selection.print_mode) {
+            return _t("Please select finish, print quality, and print mode.");
         }
         const cfg = this._emptyCanvasConfig || {};
         const longest = Math.max(selection.width, selection.height);
@@ -188,6 +324,7 @@ patch(WebsiteSale.prototype, {
             if (selection.presetId) {
                 params.set("canvas_preset_id", String(selection.presetId));
             }
+            appendEmptyCanvasProductOptionsToParams(params, selection);
             location.href = `/product/designer/${productTmplId}?${params.toString()}`;
             return;
         }

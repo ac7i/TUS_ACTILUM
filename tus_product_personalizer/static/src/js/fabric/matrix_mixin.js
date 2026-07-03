@@ -1126,6 +1126,9 @@ export const fabricMatrixMixin = {
                 active_areas: activeAreas,
                 finish_settings: serializeGlobalFinishSettings(self._3dPreviewSettings),
                 empty_canvas: Boolean(self.emptyCanvasMode),
+                empty_canvas_margin_mm: self._getEmptyCanvasMarginMm
+                    ? self._getEmptyCanvasMarginMm(side)
+                    : 0,
                 canvas_background: self._getEmptyCanvasBackground
                     ? self._getEmptyCanvasBackground(side)
                     : "#ffffff",

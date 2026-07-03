@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="canvas_option_finish_transparent" model="editor.canvas.product.option">
+            <field name="name">Transparent</field>
+            <field name="code">transparent</field>
+            <field name="category">finish</field>
+            <field name="sequence">10</field>
+            <field name="is_default" eval="True"/>
+        </record>
+        <record id="canvas_option_finish_white_opal" model="editor.canvas.product.option">
+            <field name="name">White (Opal)</field>
+            <field name="code">white_opal</field>
+            <field name="category">finish</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="canvas_option_quality_good" model="editor.canvas.product.option">
+            <field name="name">Good (600 × 600 ppi)</field>
+            <field name="code">good_600x600</field>
+            <field name="category">print_quality</field>
+            <field name="sequence">10</field>
+            <field name="is_default" eval="True"/>
+        </record>
+        <record id="canvas_option_quality_very_good" model="editor.canvas.product.option">
+            <field name="name">Very Good (600 × 1200 ppi)</field>
+            <field name="code">very_good_600x1200</field>
+            <field name="category">print_quality</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="canvas_option_quality_excellent" model="editor.canvas.product.option">
+            <field name="name">Excellent (1200 × 1200 ppi)</field>
+            <field name="code">excellent_1200x1200</field>
+            <field name="category">print_quality</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <record id="canvas_option_mode_color_only" model="editor.canvas.product.option">
+            <field name="name">Color Only</field>
+            <field name="code">color_only</field>
+            <field name="category">print_mode</field>
+            <field name="sequence">10</field>
+            <field name="is_default" eval="True"/>
+        </record>
+        <record id="canvas_option_mode_white_flood" model="editor.canvas.product.option">
+            <field name="name">White (Flood Coat)</field>
+            <field name="code">white_flood</field>
+            <field name="category">print_mode</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="canvas_option_mode_white_color_full" model="editor.canvas.product.option">
+            <field name="name">White + Color (Full Flood Coat)</field>
+            <field name="code">white_color_full</field>
+            <field name="category">print_mode</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="canvas_option_mode_mirror_color" model="editor.canvas.product.option">
+            <field name="name">Mirror – Color Only</field>
+            <field name="code">mirror_color_only</field>
+            <field name="category">print_mode</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="canvas_option_mode_mirror_white_flood" model="editor.canvas.product.option">
+            <field name="name">Mirror – White Flood Coat</field>
+            <field name="code">mirror_white_flood</field>
+            <field name="category">print_mode</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="canvas_option_mode_mirror_white_color" model="editor.canvas.product.option">
+            <field name="name">Mirror – White Flood Coat + Color</field>
+            <field name="code">mirror_white_flood_color</field>
+            <field name="category">print_mode</field>
+            <field name="sequence">60</field>
+        </record>
+
+        <record id="canvas_option_machining_folding" model="editor.canvas.product.option">
+            <field name="name">Folding</field>
+            <field name="code">folding</field>
+            <field name="category">machining</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="canvas_option_machining_cutting" model="editor.canvas.product.option">
+            <field name="name">Cutting</field>
+            <field name="code">cutting</field>
+            <field name="category">machining</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="canvas_option_machining_corner_drilling" model="editor.canvas.product.option">
+            <field name="name">Corner Drilling</field>
+            <field name="code">corner_drilling</field>
+            <field name="category">machining</field>
+            <field name="sequence">30</field>
+        </record>
+    </data>
+</odoo>

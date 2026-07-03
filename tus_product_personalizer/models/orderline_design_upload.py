@@ -50,6 +50,11 @@ class OrderlineDesignUpload(models.Model):
         default=DEFAULT_RELIEF_MM,
         help="Global emboss relief depth for this print side (3D preview / production notes).",
     )
+    empty_canvas_margin_mm = fields.Float(
+        string="Print Margin (mm)",
+        default=0.0,
+        help="Uniform print margin applied on all sides of the empty canvas sheet.",
+    )
 
     def _get_print_color_mode(self):
         website = self.env['website'].get_current_website()

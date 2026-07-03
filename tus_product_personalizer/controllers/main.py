@@ -10,6 +10,13 @@ from odoo.http import request
 from odoo.tools.image import image_data_uri
 
 from odoo.addons.tus_product_personalizer.models.finish_constants import DEFAULT_FOIL_METAL
+from odoo.addons.tus_product_personalizer.models.empty_canvas_constants import (
+    empty_canvas_line_vals_from_meta,
+    empty_canvas_product_options_payload,
+    normalize_empty_canvas_margin_mm,
+    normalize_empty_canvas_margins_by_side,
+    parse_empty_canvas_product_options,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -414,6 +421,9 @@ class ProductDesigner(http.Controller):
                 'print_height': print_h,
                 'print_unit': print_unit,
                 'canvas_background_color': obj.get('canvas_background') or '#ffffff',
+                'empty_canvas_margin_mm': normalize_empty_canvas_margin_mm(
+                    obj.get('empty_canvas_margin_mm')
+                ),
                 **self._finish_vals_from_side(obj),
             })
 
@@ -458,7 +468,23 @@ class ProductDesigner(http.Controller):
         canvas_unit = extra.pop("canvas_unit", None)
         canvas_sides = extra.pop("sides", None) or extra.pop("canvas_sides", None)
         canvas_preset_id = extra.pop("canvas_preset_id", None) or extra.pop("preset_id", None)
+        margins_raw = extra.pop("empty_canvas_margins_json", None) or extra.pop("margins_by_side", None)
         product_tmpl = request.env['product.template'].sudo().browse(int(product_tmpl_id))
+        product_options = parse_empty_canvas_product_options(
+            extra,
+            product_tmpl=product_tmpl,
+            env=request.env,
+        )
+        if isinstance(margins_raw, str):
+            try:
+                margins_by_side = json.loads(margins_raw)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                margins_by_side = {}
+        elif isinstance(margins_raw, dict):
+            margins_by_side = margins_raw
+        else:
+            margins_by_side = {}
+        margins_by_side = normalize_empty_canvas_margins_by_side(margins_by_side)
         product = request.env["product.product"].sudo()
         resolved_product_id = product_id
         if product_id:
@@ -634,9 +660,17 @@ class ProductDesigner(http.Controller):
             "empty_canvas_unit": empty_canvas_dims.get('unit'),
             "empty_canvas_sides": canvas_sides if canvas_sides in self.EMPTY_CANVAS_SIDES_MAP else 'front',
             "empty_canvas_preset_id": empty_canvas_dims.get('preset_id'),
+            "empty_canvas_finish": product_options["finish"],
+            "empty_canvas_print_quality": product_options["print_quality"],
+            "empty_canvas_print_mode": product_options["print_mode"],
+            "empty_canvas_machining_folding": product_options["machining_folding"],
+            "empty_canvas_machining_cutting": product_options["machining_cutting"],
+            "empty_canvas_machining_corner_drilling": product_options["machining_corner_drilling"],
+            "empty_canvas_machining_selection": json.dumps(product_options["machining_selection"]),
             "empty_canvas_enable_design_templates": bool(
                 product_tmpl.empty_canvas_enable_design_templates
             ) if empty_canvas_mode else False,
+            "empty_canvas_margins_json": json.dumps(margins_by_side),
             "custom_width": empty_canvas_dims.get('width'),
             "custom_height": empty_canvas_dims.get('height'),
         }
@@ -647,8 +681,7 @@ class ProductDesigner(http.Controller):
     # Share design helpers
     # -------------------------------------------------------------------------
 
-    @staticmethod
-    def _empty_canvas_kwargs_from_bundle(bundle):
+    def _empty_canvas_kwargs_from_bundle(self, bundle, product_tmpl=None):
         """Extract empty-canvas sizing params stored in a design bundle."""
         if not isinstance(bundle, dict):
             return {}
@@ -663,6 +696,22 @@ class ProductDesigner(http.Controller):
         }
         if meta.get("preset_id"):
             params["canvas_preset_id"] = meta.get("preset_id")
+        options = parse_empty_canvas_product_options(
+            meta,
+            product_tmpl=product_tmpl,
+            env=request.env,
+        )
+        params.update({
+            "canvas_finish": options["finish"],
+            "canvas_print_quality": options["print_quality"],
+            "canvas_print_mode": options["print_mode"],
+            "machining_folding": "1" if options["machining_folding"] else "0",
+            "machining_cutting": "1" if options["machining_cutting"] else "0",
+            "machining_corner_drilling": "1" if options["machining_corner_drilling"] else "0",
+            "machining_selection": ",".join(options["machining_selection"]),
+        })
+        margins = normalize_empty_canvas_margins_by_side(meta.get("margins_by_side") or {})
+        params["empty_canvas_margins_json"] = json.dumps(margins)
         return params
 
     def _empty_canvas_kwargs_from_share(self, share):
@@ -673,7 +722,7 @@ class ProductDesigner(http.Controller):
             bundle = json.loads(raw.decode("utf-8"))
         except (TypeError, ValueError, UnicodeDecodeError):
             return {}
-        return self._empty_canvas_kwargs_from_bundle(bundle)
+        return self._empty_canvas_kwargs_from_bundle(bundle, product_tmpl=share.product_tmpl_id)
 
     def _get_active_share(self, token):
         if not token:
@@ -2054,15 +2103,13 @@ class ProductDesigner(http.Controller):
             line = self._create_custom_sale_line(line_vals)
 
             empty_canvas_meta = it.get('empty_canvas') or {}
-            if empty_canvas_meta:
-                line.write({
-                    'empty_canvas_width': float(empty_canvas_meta.get('width') or 0),
-                    'empty_canvas_height': float(empty_canvas_meta.get('height') or 0),
-                    'empty_canvas_unit': empty_canvas_meta.get('unit') or 'in',
-                    'empty_canvas_sides': empty_canvas_meta.get('sides') or False,
-                    'empty_canvas_preset_id': int(empty_canvas_meta['preset_id'])
-                    if empty_canvas_meta.get('preset_id') else False,
-                })
+            canvas_vals = empty_canvas_line_vals_from_meta(
+                empty_canvas_meta,
+                product_tmpl=product.product_tmpl_id,
+                env=request.env,
+            )
+            if canvas_vals:
+                line.write(canvas_vals)
 
             if design_price_sum > 0:
                 charge_product = self._get_charge_product(
@@ -2355,6 +2402,10 @@ class ProductDesigner(http.Controller):
             'custom_min': product_tmpl.empty_canvas_custom_min or 0,
             'custom_max': product_tmpl.empty_canvas_custom_max or 0,
             'custom_unit': product_tmpl.empty_canvas_custom_unit or 'in',
+            'product_options': empty_canvas_product_options_payload(
+                product_tmpl=product_tmpl,
+                env=request.env,
+            ),
         }
 
     @http.route('/get_product_views', type='json', auth='public', website=True, csrf=False)

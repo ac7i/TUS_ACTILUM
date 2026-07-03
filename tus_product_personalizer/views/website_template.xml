@@ -9,53 +9,86 @@
         <xpath expr="//div[@id='o_wsale_cta_wrapper']" position="inside">
             <t t-if="product.empty_canvas">
                 <div class="tus-empty-canvas-picker">
-                    <div class="tus-empty-canvas-picker-title">Choose your canvas</div>
-                    <div class="mb-2">
-                        <label class="form-label small text-muted">Canvas size</label>
-                        <select class="form-select tus-empty-canvas-preset-select">
+                    <div class="tus-ecp-header">
+                        <div class="tus-ecp-header-title">Configure your sheet</div>
+                        <div class="tus-ecp-header-subtitle">Set size and print options before opening the designer.</div>
+                    </div>
+
+                    <div class="tus-ecp-section">
+                        <div class="tus-ecp-section-label">Dimensions</div>
+                        <label class="tus-ecp-field-label" for="tusEmptyCanvasPreset">Canvas size</label>
+                        <select id="tusEmptyCanvasPreset" class="form-select tus-empty-canvas-preset-select">
                             <option value="">Loading sizes...</option>
                         </select>
-                    </div>
-                    <div class="tus-empty-canvas-custom-fields d-none mb-2">
-                        <label class="form-label small text-muted">Custom size</label>
-                        <div class="row g-2">
-                            <div class="col-4">
-                                <input type="number" min="0" step="0.01" class="form-control" id="tusEmptyCanvasWidth" placeholder="Width"/>
-                            </div>
-                            <div class="col-4">
-                                <input type="number" min="0" step="0.01" class="form-control" id="tusEmptyCanvasHeight" placeholder="Height"/>
-                            </div>
-                            <div class="col-4">
-                                <select class="form-select" id="tusEmptyCanvasUnit">
-                                    <option value="in">in</option>
-                                    <option value="mm">mm</option>
-                                    <option value="cm">cm</option>
-                                </select>
+                        <div class="tus-empty-canvas-custom-fields tus-ecp-custom-size d-none">
+                            <label class="tus-ecp-field-label">Custom dimensions</label>
+                            <div class="tus-ecp-dimension-row">
+                                <div class="tus-ecp-dimension-item">
+                                    <span class="tus-ecp-dimension-hint">Length</span>
+                                    <input type="number" min="0" step="0.01" class="form-control" id="tusEmptyCanvasWidth" placeholder="0"/>
+                                </div>
+                                <span class="tus-ecp-dimension-separator" aria-hidden="true">×</span>
+                                <div class="tus-ecp-dimension-item">
+                                    <span class="tus-ecp-dimension-hint">Width</span>
+                                    <input type="number" min="0" step="0.01" class="form-control" id="tusEmptyCanvasHeight" placeholder="0"/>
+                                </div>
+                                <div class="tus-ecp-dimension-item tus-ecp-dimension-unit">
+                                    <span class="tus-ecp-dimension-hint">Unit</span>
+                                    <select class="form-select" id="tusEmptyCanvasUnit">
+                                        <option value="in">in</option>
+                                        <option value="mm">mm</option>
+                                        <option value="cm">cm</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label small text-muted">Print side</label>
-                        <div class="tus-empty-canvas-side-options">
-                            <label class="form-check form-check-inline">
-                                <input class="form-check-input tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="front" checked="checked"/>
-                                Front
+
+                    <div class="tus-ecp-section">
+                        <div class="tus-ecp-section-label">Print side</div>
+                        <div class="tus-ecp-segmented tus-empty-canvas-side-options" role="radiogroup" aria-label="Print side">
+                            <label class="tus-ecp-segment">
+                                <input class="tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="front" checked="checked"/>
+                                <span>Front</span>
                             </label>
-                            <label class="form-check form-check-inline">
-                                <input class="form-check-input tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="back"/>
-                                Back
+                            <label class="tus-ecp-segment">
+                                <input class="tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="back"/>
+                                <span>Back</span>
                             </label>
-                            <label class="form-check form-check-inline">
-                                <input class="form-check-input tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="both"/>
-                                Front &amp; Back
+                            <label class="tus-ecp-segment">
+                                <input class="tus-empty-canvas-side-input" type="radio" name="tus_empty_canvas_side" value="both"/>
+                                <span>Front &amp; Back</span>
                             </label>
                         </div>
+                    </div>
+
+                    <div class="tus-ecp-section">
+                        <div class="tus-ecp-section-label">Print options</div>
+                        <div class="tus-ecp-options-grid">
+                            <div class="tus-ecp-option">
+                                <label class="tus-ecp-field-label">Finish</label>
+                                <select class="form-select tus-empty-canvas-finish-select"/>
+                            </div>
+                            <div class="tus-ecp-option">
+                                <label class="tus-ecp-field-label">Print quality</label>
+                                <select class="form-select tus-empty-canvas-print-quality-select"/>
+                            </div>
+                            <div class="tus-ecp-option tus-ecp-option-wide">
+                                <label class="tus-ecp-field-label">Print mode</label>
+                                <select class="form-select tus-empty-canvas-print-mode-select"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tus-ecp-section">
+                        <div class="tus-ecp-section-label">Basic machining</div>
+                        <div class="tus-ecp-chip-group tus-empty-canvas-machining-options"/>
                     </div>
                 </div>
             </t>
             <a
                 href="#"
-                class="btn btn-primary customize_design"
+                class="btn btn-primary customize_design tus-ecp-design-btn"
                 t-if="len(product.views) or product.empty_canvas"
             >
                 <i class="fa fa-pencil-square-o" aria-hidden="true" />

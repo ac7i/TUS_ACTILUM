@@ -126,6 +126,9 @@
                         <field name="empty_canvas_preset_ids" widget="many2many_tags"
                                invisible="not empty_canvas"
                                options="{'no_create': True}"/>
+                        <field name="empty_canvas_option_ids" widget="many2many_tags"
+                               invisible="not empty_canvas"
+                               options="{'no_create': True}"/>
                         <field name="empty_canvas_custom_min" invisible="not empty_canvas or not empty_canvas_allow_custom"/>
                         <field name="empty_canvas_custom_max" invisible="not empty_canvas or not empty_canvas_allow_custom"/>
                         <field name="empty_canvas_custom_unit" invisible="not empty_canvas or not empty_canvas_allow_custom"/>

@@ -9,6 +9,7 @@ access_product_printing_method,product_printing_method,model_product_printing_me
 access_product_design_template,product.design.template,model_product_design_template,,1,1,1,1
 access_editor_text_template,access.editor.text.template,model_editor_text_template,,1,1,1,1
 access_editor_canvas_preset,access.editor.canvas.preset,model_editor_canvas_preset,base.group_user,1,1,1,1
+access_editor_canvas_product_option,access.editor.canvas.product.option,model_editor_canvas_product_option,base.group_user,1,1,1,1
 access_design_template_import_wizard,design.template.import.wizard,model_design_template_import_wizard,base.group_user,1,1,1,1
 access_design_template_sheet_import_wizard,design.template.sheet.import.wizard,model_design_template_sheet_import_wizard,base.group_user,1,1,1,1
 access_product_design_share,product.design.share,model_product_design_share,base.group_system,1,1,1,1

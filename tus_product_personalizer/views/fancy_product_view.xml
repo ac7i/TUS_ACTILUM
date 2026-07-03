@@ -101,8 +101,20 @@
                     <input type="hidden" name="empty_canvas_unit" t-att-value="empty_canvas_unit or ''"/>
                     <input type="hidden" name="empty_canvas_sides" t-att-value="empty_canvas_sides or 'front'"/>
                     <input type="hidden" name="empty_canvas_preset_id" t-att-value="empty_canvas_preset_id or ''"/>
+                    <input type="hidden" name="empty_canvas_finish" t-att-value="empty_canvas_finish or ''"/>
+                    <input type="hidden" name="empty_canvas_print_quality" t-att-value="empty_canvas_print_quality or ''"/>
+                    <input type="hidden" name="empty_canvas_print_mode" t-att-value="empty_canvas_print_mode or ''"/>
+                    <input type="hidden" name="empty_canvas_machining_folding"
+                           t-att-value="empty_canvas_machining_folding and '1' or '0'"/>
+                    <input type="hidden" name="empty_canvas_machining_cutting"
+                           t-att-value="empty_canvas_machining_cutting and '1' or '0'"/>
+                    <input type="hidden" name="empty_canvas_machining_corner_drilling"
+                           t-att-value="empty_canvas_machining_corner_drilling and '1' or '0'"/>
+                    <input type="hidden" name="empty_canvas_machining_selection"
+                           t-att-value="empty_canvas_machining_selection or '[]'"/>
                     <input type="hidden" name="empty_canvas_enable_design_templates"
                            t-att-value="empty_canvas_enable_design_templates and '1' or '0'"/>
+                    <input type="hidden" name="empty_canvas_margins_json" t-att-value="empty_canvas_margins_json or '{}'"/>
                     <input type="hidden" name="size_width" id="customWidth" t-att-value="custom_width" />
                     <input type="hidden" name="size_height" id="customHeight" t-att-value="custom_height" />
                     <div class="fab_loader_wrapper">

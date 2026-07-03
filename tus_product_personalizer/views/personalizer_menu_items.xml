@@ -35,4 +35,11 @@
               sequence="26"
     />
 
+    <menuitem id="editor_canvas_product_option_menu"
+              name="Canvas Product Options"
+              parent="editor_root_menu"
+              action="action_editor_canvas_product_option"
+              sequence="27"
+    />
+
 </odoo>

@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="sale.view_order_form" />
         <field name="arch" type="xml">
             <xpath
-                expr="//notebook/page[@name='order_lines']/field/list/field[@name='product_template_id']"
+                expr="//page[@name='order_lines']/field[@name='order_line']/list/field[@name='product_template_id']"
                 position="after"
             >
                 <field name="printing_method_id" widget="many2one" options="{'no_create': True}"/>
@@ -19,6 +19,17 @@
                 <field name="empty_canvas_height" column_invisible="1" />
                 <field name="empty_canvas_unit" column_invisible="1" />
                 <field name="empty_canvas_sides" column_invisible="1" />
+                <field name="empty_canvas_machining_folding" column_invisible="1" />
+                <field name="empty_canvas_machining_cutting" column_invisible="1" />
+                <field name="empty_canvas_machining_corner_drilling" column_invisible="1" />
+                <field name="empty_canvas_size_label" string="Canvas Size" optional="show"/>
+                <field name="empty_canvas_finish_label" string="Finish" optional="show"/>
+                <field name="empty_canvas_print_quality_label" string="Print Quality" optional="show"/>
+                <field name="empty_canvas_print_mode_label" string="Print Mode" optional="show"/>
+                <field name="empty_canvas_machining_summary" string="Basic Machining" optional="show"/>
+                <field name="empty_canvas_finish" column_invisible="1"/>
+                <field name="empty_canvas_print_quality" column_invisible="1"/>
+                <field name="empty_canvas_print_mode" column_invisible="1"/>
                 <button
                     name="view_uploaded_design"
                     type="object"
@@ -40,6 +51,19 @@
                     class="btn-secondary"
                     invisible="not vdp_enabled"
                 />
+            </xpath>
+            <xpath
+                expr="//page[@name='order_lines']/field[@name='order_line']/form//div[@name='lead']/parent::group"
+                position="before"
+            >
+                <group string="Canvas Configuration" invisible="not empty_canvas_size_label">
+                    <field name="empty_canvas_size_label" readonly="1"/>
+                    <field name="empty_canvas_finish_label" readonly="1"/>
+                    <field name="empty_canvas_print_quality_label" readonly="1"/>
+                    <field name="empty_canvas_print_mode_label" readonly="1"/>
+                    <field name="empty_canvas_machining_summary" readonly="1"/>
+                    <field name="empty_canvas_machining_codes" readonly="1" invisible="1"/>
+                </group>
             </xpath>
         </field>
     </record>

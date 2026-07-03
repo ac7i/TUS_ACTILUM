@@ -14,6 +14,48 @@ from .finish_constants import (
 )
 
 
+_DISPLAY_OMIT_KEYS = frozenset({
+    "src",
+    "element_image",
+    "data",
+    "dataurl",
+    "preview",
+    "image",
+    "elementimage",
+})
+_MAX_INLINE_STRING = 160
+
+
+def _looks_like_embedded_binary(value):
+    if not isinstance(value, str) or len(value) < 80:
+        return False
+    if value.startswith("data:"):
+        return True
+    sample = value[:256]
+    if sample.startswith("/9j/") or sample.startswith("iVBOR"):
+        return True
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r")
+    return len(sample) > 120 and sum(ch in allowed for ch in sample) / len(sample) > 0.95
+
+
+def _sanitize_imprint_attr_for_display(value, key=None):
+    """Strip huge binary payloads so technical JSON stays readable."""
+    if isinstance(value, dict):
+        return {
+            child_key: _sanitize_imprint_attr_for_display(child_value, child_key)
+            for child_key, child_value in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_imprint_attr_for_display(item) for item in value]
+    if isinstance(value, str):
+        key_name = (key or "").lower()
+        if key_name in _DISPLAY_OMIT_KEYS or _looks_like_embedded_binary(value):
+            return "<omitted (%s characters)>" % len(value)
+        if len(value) > _MAX_INLINE_STRING:
+            return "%s…" % value[:_MAX_INLINE_STRING]
+    return value
+
+
 class OrderImprintDesign(models.Model):
     _name = "orderline.imprint.design"
     _order = "id desc"
@@ -55,6 +97,65 @@ class OrderImprintDesign(models.Model):
         string="Imprint Design",
         compute="_compute_imprint_design_display",
     )
+    element_label = fields.Char(
+        string="Element",
+        compute="_compute_imprint_summary",
+    )
+    size_display = fields.Char(
+        string="Size",
+        compute="_compute_imprint_summary",
+    )
+    color_display = fields.Char(
+        string="Colors",
+        compute="_compute_imprint_summary",
+    )
+
+    @api.depends(
+        "imprint_design_attribute",
+        "imprint_width",
+        "imprint_height",
+        "imprint_width_uom",
+        "imprint_colors",
+        "imprint_cmyk",
+        "printable_color_id",
+        "imprint_image",
+    )
+    def _compute_imprint_summary(self):
+        for record in self:
+            attrs = record.imprint_design_attribute if isinstance(
+                record.imprint_design_attribute, dict
+            ) else {}
+            el_type = attrs.get("type") or ""
+            text = (attrs.get("text") or "").strip()
+            if text:
+                snippet = text[:48] + ("…" if len(text) > 48 else "")
+                record.element_label = _("Text: %s") % snippet
+            elif el_type in ("image", "group") or record.imprint_image:
+                record.element_label = _("Image")
+            elif el_type:
+                record.element_label = el_type.replace("_", " ").title()
+            else:
+                record.element_label = _("Element")
+
+            uom_name = record.imprint_width_uom.name if record.imprint_width_uom else ""
+            if record.imprint_width and record.imprint_height:
+                record.size_display = _(
+                    "%(width)g × %(height)g %(unit)s",
+                    width=record.imprint_width,
+                    height=record.imprint_height,
+                    unit=uom_name,
+                ).strip()
+            else:
+                record.size_display = ""
+
+            color_parts = []
+            if record.imprint_colors:
+                color_parts.append(record.imprint_colors)
+            if record.imprint_cmyk:
+                color_parts.append(record.imprint_cmyk)
+            elif record.printable_color_id:
+                color_parts.append(record.printable_color_id.display_name)
+            record.color_display = " · ".join(color_parts)
 
     def _get_print_color_mode(self):
         """Return 'cmyk' or 'rgb' based on website print settings."""
@@ -151,14 +252,16 @@ class OrderImprintDesign(models.Model):
     @api.depends('imprint_design_attribute')
     def _compute_imprint_design_display(self):
         for record in self:
-            if record.imprint_design_attribute:
-                try:
-                    record.imprint_design_display = json.dumps(
-                        record.imprint_design_attribute,
-                        indent=2,
-                        ensure_ascii=False
-                    )
-                except (TypeError, ValueError):
-                    record.imprint_design_display = str(record.imprint_design_attribute)
-            else:
+            if not record.imprint_design_attribute:
                 record.imprint_design_display = ""
+                continue
+            try:
+                payload = _sanitize_imprint_attr_for_display(record.imprint_design_attribute)
+                record.imprint_design_display = json.dumps(
+                    payload,
+                    indent=2,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            except (TypeError, ValueError):
+                record.imprint_design_display = str(record.imprint_design_attribute)

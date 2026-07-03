@@ -50,6 +50,116 @@ class SaleOrderLine(models.Model):
         copy=True,
         ondelete="set null",
     )
+    empty_canvas_finish = fields.Char(string="Canvas Finish", copy=True)
+    empty_canvas_print_quality = fields.Char(string="Print Quality", copy=True)
+    empty_canvas_print_mode = fields.Char(string="Print Mode", copy=True)
+    empty_canvas_machining_codes = fields.Char(
+        string="Machining Options",
+        copy=True,
+        help="Comma-separated machining option codes selected on the product page.",
+    )
+    empty_canvas_machining_folding = fields.Boolean(
+        string="Machining: Folding",
+        default=False,
+        copy=True,
+    )
+    empty_canvas_machining_cutting = fields.Boolean(
+        string="Machining: Cutting",
+        default=False,
+        copy=True,
+    )
+    empty_canvas_machining_corner_drilling = fields.Boolean(
+        string="Machining: Corner Drilling",
+        default=False,
+        copy=True,
+    )
+    empty_canvas_size_label = fields.Char(
+        string="Canvas Size",
+        compute="_compute_empty_canvas_display_fields",
+    )
+    empty_canvas_finish_label = fields.Char(
+        string="Finish Label",
+        compute="_compute_empty_canvas_display_fields",
+    )
+    empty_canvas_print_quality_label = fields.Char(
+        string="Print Quality Label",
+        compute="_compute_empty_canvas_display_fields",
+    )
+    empty_canvas_print_mode_label = fields.Char(
+        string="Print Mode Label",
+        compute="_compute_empty_canvas_display_fields",
+    )
+    empty_canvas_machining_summary = fields.Char(
+        string="Basic Machining",
+        compute="_compute_empty_canvas_display_fields",
+    )
+
+    @api.depends(
+        "empty_canvas_width",
+        "empty_canvas_height",
+        "empty_canvas_unit",
+        "empty_canvas_sides",
+        "empty_canvas_finish",
+        "empty_canvas_print_quality",
+        "empty_canvas_print_mode",
+        "empty_canvas_machining_codes",
+        "empty_canvas_machining_folding",
+        "empty_canvas_machining_cutting",
+        "empty_canvas_machining_corner_drilling",
+    )
+    def _compute_empty_canvas_display_fields(self):
+        Option = self.env["editor.canvas.product.option"].sudo()
+        sides_labels = dict(self._fields["empty_canvas_sides"].selection)
+        for line in self:
+            if line.empty_canvas_width and line.empty_canvas_height:
+                side_label = sides_labels.get(line.empty_canvas_sides, line.empty_canvas_sides or "")
+                line.empty_canvas_size_label = _(
+                    "%(width)s × %(height)s %(unit)s (%(side)s)",
+                    width=line.empty_canvas_width,
+                    height=line.empty_canvas_height,
+                    unit=line.empty_canvas_unit or "in",
+                    side=side_label,
+                )
+            else:
+                line.empty_canvas_size_label = False
+
+            finish_map = Option.get_label_map("finish", [line.empty_canvas_finish])
+            quality_map = Option.get_label_map("print_quality", [line.empty_canvas_print_quality])
+            mode_map = Option.get_label_map("print_mode", [line.empty_canvas_print_mode])
+            line.empty_canvas_finish_label = (
+                finish_map.get(line.empty_canvas_finish)
+                or line.empty_canvas_finish
+                or False
+            )
+            line.empty_canvas_print_quality_label = (
+                quality_map.get(line.empty_canvas_print_quality)
+                or line.empty_canvas_print_quality
+                or False
+            )
+            line.empty_canvas_print_mode_label = (
+                mode_map.get(line.empty_canvas_print_mode)
+                or line.empty_canvas_print_mode
+                or False
+            )
+
+            machining_codes = [
+                code.strip()
+                for code in (line.empty_canvas_machining_codes or "").split(",")
+                if code.strip()
+            ]
+            if not machining_codes:
+                legacy_codes = []
+                if line.empty_canvas_machining_folding:
+                    legacy_codes.append("folding")
+                if line.empty_canvas_machining_cutting:
+                    legacy_codes.append("cutting")
+                if line.empty_canvas_machining_corner_drilling:
+                    legacy_codes.append("corner_drilling")
+                machining_codes = legacy_codes
+            machining_map = Option.get_label_map("machining", machining_codes)
+            line.empty_canvas_machining_summary = ", ".join(
+                machining_map.get(code, code) for code in machining_codes
+            ) if machining_codes else False
 
     @api.depends("vdp_record_ids")
     def _compute_vdp_record_count(self):
@@ -144,4 +254,3 @@ class SaleOrderLine(models.Model):
         from odoo.addons.tus_product_personalizer.controllers.main import ProductDesigner
 
         ProductDesigner()._create_line_designs(self, design_data or [])
-

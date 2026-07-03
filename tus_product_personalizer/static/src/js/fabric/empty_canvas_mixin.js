@@ -3,6 +3,12 @@
 import { _t } from "@web/core/l10n/translation";
 import { normalizeDesignArea } from "../design_area_shapes";
 
+const DEFAULT_EMPTY_CANVAS_FINISH = "transparent";
+const DEFAULT_EMPTY_CANVAS_PRINT_QUALITY = "good_600x600";
+const DEFAULT_EMPTY_CANVAS_PRINT_MODE = "color_only";
+const EMPTY_CANVAS_MAX_MARGIN_MM = 30;
+const EMPTY_CANVAS_MARGIN_SIDES = ["front", "back", "left", "right"];
+
 export const fabricEmptyCanvasMixin = {
     _initEmptyCanvasState() {
         this.emptyCanvasMode = $('input[name="empty_canvas_mode"]').val() === "1";
@@ -13,12 +19,81 @@ export const fabricEmptyCanvasMixin = {
         };
         this.emptyCanvasSides = $('input[name="empty_canvas_sides"]').val() || "front";
         this.emptyCanvasPresetId = parseInt($('input[name="empty_canvas_preset_id"]').val(), 10) || null;
+        this.emptyCanvasFinish = $('input[name="empty_canvas_finish"]').val() || DEFAULT_EMPTY_CANVAS_FINISH;
+        this.emptyCanvasPrintQuality =
+            $('input[name="empty_canvas_print_quality"]').val() || DEFAULT_EMPTY_CANVAS_PRINT_QUALITY;
+        this.emptyCanvasPrintMode =
+            $('input[name="empty_canvas_print_mode"]').val() || DEFAULT_EMPTY_CANVAS_PRINT_MODE;
+        this.emptyCanvasMachiningFolding =
+            $('input[name="empty_canvas_machining_folding"]').val() === "1";
+        this.emptyCanvasMachiningCutting =
+            $('input[name="empty_canvas_machining_cutting"]').val() === "1";
+        this.emptyCanvasMachiningCornerDrilling =
+            $('input[name="empty_canvas_machining_corner_drilling"]').val() === "1";
+        this.emptyCanvasMachiningSelection = [];
+        try {
+            const machiningRaw = $('input[name="empty_canvas_machining_selection"]').val();
+            if (machiningRaw) {
+                const parsed = JSON.parse(machiningRaw);
+                if (Array.isArray(parsed)) {
+                    this.emptyCanvasMachiningSelection = parsed.filter(Boolean);
+                }
+            }
+        } catch (_err) {
+            this.emptyCanvasMachiningSelection = [];
+        }
+        if (!this.emptyCanvasMachiningSelection.length) {
+            const legacySelection = [];
+            if (this.emptyCanvasMachiningFolding) {
+                legacySelection.push("folding");
+            }
+            if (this.emptyCanvasMachiningCutting) {
+                legacySelection.push("cutting");
+            }
+            if (this.emptyCanvasMachiningCornerDrilling) {
+                legacySelection.push("corner_drilling");
+            }
+            this.emptyCanvasMachiningSelection = legacySelection;
+        }
+        this.emptyCanvasMachiningFolding = this.emptyCanvasMachiningSelection.includes("folding");
+        this.emptyCanvasMachiningCutting = this.emptyCanvasMachiningSelection.includes("cutting");
+        this.emptyCanvasMachiningCornerDrilling = this.emptyCanvasMachiningSelection.includes(
+            "corner_drilling"
+        );
         this.emptyCanvasBgBySide = {
             front: "#ffffff",
             back: "#ffffff",
             left: "#ffffff",
             right: "#ffffff",
         };
+        this.emptyCanvasMarginBySide = {
+            front: 0,
+            back: 0,
+            left: 0,
+            right: 0,
+        };
+        try {
+            const marginsRaw = $('input[name="empty_canvas_margins_json"]').val();
+            if (marginsRaw) {
+                const parsed = JSON.parse(marginsRaw);
+                if (parsed && typeof parsed === "object") {
+                    for (const side of EMPTY_CANVAS_MARGIN_SIDES) {
+                        const value = parseFloat(parsed[side]);
+                        if (!Number.isNaN(value)) {
+                            this.emptyCanvasMarginBySide[side] = value;
+                        }
+                    }
+                }
+            }
+        } catch (_err) {
+            // Keep default zero margins when hidden input is missing or invalid.
+        }
+        for (const side of EMPTY_CANVAS_MARGIN_SIDES) {
+            this.emptyCanvasMarginBySide[side] = this._clampEmptyCanvasMarginMm(
+                this.emptyCanvasMarginBySide[side],
+                side
+            );
+        }
         if (this.emptyCanvasMode) {
             this.showMatrixTable = false;
             this.showVdp = false;
@@ -46,6 +121,21 @@ export const fabricEmptyCanvasMixin = {
         if (meta.preset_id) {
             params.canvas_preset_id = meta.preset_id;
         }
+        if (meta.finish) {
+            params.canvas_finish = meta.finish;
+        }
+        if (meta.print_quality) {
+            params.canvas_print_quality = meta.print_quality;
+        }
+        if (meta.print_mode) {
+            params.canvas_print_mode = meta.print_mode;
+        }
+        params.machining_folding = meta.machining_folding ? "1" : "0";
+        params.machining_cutting = meta.machining_cutting ? "1" : "0";
+        params.machining_corner_drilling = meta.machining_corner_drilling ? "1" : "0";
+        if (meta.machining_selection?.length) {
+            params.machining_selection = meta.machining_selection.join(",");
+        }
         return params;
     },
 
@@ -60,7 +150,214 @@ export const fabricEmptyCanvasMixin = {
             sides: this.emptyCanvasSides,
             preset_id: this.emptyCanvasPresetId || null,
             background_by_side: { ...(this.emptyCanvasBgBySide || {}) },
+            finish: this.emptyCanvasFinish,
+            print_quality: this.emptyCanvasPrintQuality,
+            print_mode: this.emptyCanvasPrintMode,
+            machining_folding: this.emptyCanvasMachiningFolding,
+            machining_cutting: this.emptyCanvasMachiningCutting,
+            machining_corner_drilling: this.emptyCanvasMachiningCornerDrilling,
+            machining_selection: [...(this.emptyCanvasMachiningSelection || [])],
+            margins_by_side: { ...(this.emptyCanvasMarginBySide || {}) },
         };
+    },
+
+    _convertSheetDimensionToMm(value, unit) {
+        const amount = parseFloat(value) || 0;
+        const normalizedUnit = String(unit || "in").toLowerCase();
+        if (normalizedUnit === "mm") {
+            return amount;
+        }
+        if (normalizedUnit === "cm") {
+            return amount * 10;
+        }
+        if (normalizedUnit === "ft") {
+            return amount * 304.8;
+        }
+        return amount * 25.4;
+    },
+
+    _convertMmToSheetDimension(mm, unit) {
+        const value = parseFloat(mm) || 0;
+        const normalizedUnit = String(unit || "in").toLowerCase();
+        if (normalizedUnit === "mm") {
+            return value;
+        }
+        if (normalizedUnit === "cm") {
+            return value / 10;
+        }
+        if (normalizedUnit === "ft") {
+            return value / 304.8;
+        }
+        return value / 25.4;
+    },
+
+    _getMaxAllowedEmptyCanvasMarginMm() {
+        const { width, height, unit } = this.emptyCanvasActual || {};
+        if (!width || !height) {
+            return EMPTY_CANVAS_MAX_MARGIN_MM;
+        }
+        const widthMm = this._convertSheetDimensionToMm(width, unit);
+        const heightMm = this._convertSheetDimensionToMm(height, unit);
+        const maxFromSheet = Math.min(widthMm, heightMm) / 2 - 0.5;
+        return Math.min(EMPTY_CANVAS_MAX_MARGIN_MM, Math.max(0, maxFromSheet));
+    },
+
+    _clampEmptyCanvasMarginMm(value, side) {
+        const maxAllowed = this._getMaxAllowedEmptyCanvasMarginMm();
+        const margin = Math.max(0, parseFloat(value) || 0);
+        return Math.min(maxAllowed, Math.min(EMPTY_CANVAS_MAX_MARGIN_MM, margin));
+    },
+
+    _getEmptyCanvasMarginMm(side) {
+        const key = side || this.active_side || "front";
+        return this._clampEmptyCanvasMarginMm(this.emptyCanvasMarginBySide?.[key] ?? 0, key);
+    },
+
+    _getEmptyCanvasMarginInsets(fabricCanvas, side) {
+        const marginMm = this._getEmptyCanvasMarginMm(side);
+        if (marginMm <= 0 || !fabricCanvas) {
+            return null;
+        }
+        const { width, height, unit } = this.emptyCanvasActual || {};
+        const widthMm = this._convertSheetDimensionToMm(width, unit);
+        const heightMm = this._convertSheetDimensionToMm(height, unit);
+        if (widthMm <= 0 || heightMm <= 0) {
+            return null;
+        }
+        const canvasW = fabricCanvas.getWidth();
+        const canvasH = fabricCanvas.getHeight();
+        const marginPxX = marginMm * (canvasW / widthMm);
+        const marginPxY = marginMm * (canvasH / heightMm);
+        return {
+            left: marginPxX,
+            top: marginPxY,
+            right: marginPxX,
+            bottom: marginPxY,
+            width: Math.max(1, canvasW - marginPxX * 2),
+            height: Math.max(1, canvasH - marginPxY * 2),
+        };
+    },
+
+    _getEmptyCanvasPrintableInset(fabricCanvas, side) {
+        const insets = this._getEmptyCanvasMarginInsets(fabricCanvas, side);
+        if (!insets) {
+            return null;
+        }
+        return {
+            left: insets.left,
+            top: insets.top,
+            width: insets.width,
+            height: insets.height,
+            right: insets.right,
+            bottom: insets.bottom,
+        };
+    },
+
+    _updateEmptyCanvasPrintableGuide(wrapper, inset) {
+        if (!wrapper) {
+            return;
+        }
+        let guide = wrapper.querySelector(".tus-empty-canvas-printable-guide");
+        if (!inset) {
+            guide?.remove();
+            return;
+        }
+        if (!guide) {
+            guide = document.createElement("div");
+            guide.className = "tus-empty-canvas-printable-guide";
+            wrapper.appendChild(guide);
+        }
+        guide.style.left = `${inset.left}px`;
+        guide.style.top = `${inset.top}px`;
+        guide.style.right = `${inset.right}px`;
+        guide.style.bottom = `${inset.bottom}px`;
+        guide.style.width = "auto";
+        guide.style.height = "auto";
+    },
+
+    _applyEmptyCanvasMarginsForCanvas(fabricCanvas, side) {
+        if (!fabricCanvas) {
+            return;
+        }
+        const inset = this._getEmptyCanvasPrintableInset(fabricCanvas, side);
+        if (!inset) {
+            fabricCanvas.clipPath = null;
+            fabricCanvas._tusPrintableInset = null;
+            this._updateEmptyCanvasPrintableGuide(fabricCanvas._wrapperEl, null);
+            fabricCanvas.requestRenderAll();
+            return;
+        }
+        fabricCanvas._tusPrintableInset = inset;
+        fabricCanvas.clipPath = new fabric.Rect({
+            left: inset.left,
+            top: inset.top,
+            width: inset.width,
+            height: inset.height,
+            absolutePositioned: true,
+        });
+        this._updateEmptyCanvasPrintableGuide(fabricCanvas._wrapperEl, inset);
+        fabricCanvas.requestRenderAll();
+    },
+
+    _applyEmptyCanvasMarginsForSide(side) {
+        const key = side || this.active_side || "front";
+        for (const entry of this.canvasesBySide[key] || []) {
+            this._applyEmptyCanvasMarginsForCanvas(entry.canvas, key);
+            if (entry.canvas) {
+                entry.canvas.getObjects().forEach((obj) => {
+                    if (obj.center_line) {
+                        return;
+                    }
+                    this._clampObjectToDesignArea?.(entry.canvas, obj);
+                });
+            }
+        }
+    },
+
+    _setEmptyCanvasMargin(side, marginMm) {
+        const key = side || this.active_side || "front";
+        this.emptyCanvasMarginBySide = this.emptyCanvasMarginBySide || {};
+        this.emptyCanvasMarginBySide[key] = this._clampEmptyCanvasMarginMm(marginMm, key);
+        this._syncEmptyCanvasMarginsHiddenInput();
+        this._applyEmptyCanvasMarginsForSide(key);
+        this._syncEmptyCanvasFooterForSide(key);
+        return this.emptyCanvasMarginBySide[key];
+    },
+
+    _syncEmptyCanvasMarginsHiddenInput() {
+        const $input = $('input[name="empty_canvas_margins_json"]');
+        if ($input.length) {
+            $input.val(JSON.stringify(this.emptyCanvasMarginBySide || {}));
+        }
+    },
+
+    _formatEmptyCanvasPrintableSizeLabel(side) {
+        const marginMm = this._getEmptyCanvasMarginMm(side);
+        if (marginMm <= 0) {
+            return "";
+        }
+        const { width, height, unit } = this.emptyCanvasActual || {};
+        if (!width || !height) {
+            return "";
+        }
+        const printableW = this._convertMmToSheetDimension(
+            Math.max(0, this._convertSheetDimensionToMm(width, unit) - 2 * marginMm),
+            unit
+        );
+        const printableH = this._convertMmToSheetDimension(
+            Math.max(0, this._convertSheetDimensionToMm(height, unit) - 2 * marginMm),
+            unit
+        );
+        const precision = unit === "mm" ? 0 : 2;
+        const format = (value) => {
+            const rounded = Number(value.toFixed(precision));
+            return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+        };
+        return _t("Printable: %(w)s × %(h)s %(u)s", {
+            w: format(printableW),
+            h: format(printableH),
+            u: unit || "in",
+        });
     },
 
     _normalizeEmptyCanvasColor(color, fallback = "#ffffff") {
@@ -110,12 +407,14 @@ export const fabricEmptyCanvasMixin = {
         }
     },
 
-    _formatEmptyCanvasSizeLabel() {
+    _formatEmptyCanvasSizeLabel(side) {
         const { width, height, unit } = this.emptyCanvasActual || {};
         if (!width || !height) {
             return "";
         }
-        return `${width} × ${height} ${unit || "in"}`;
+        const sheetLabel = `${width} × ${height} ${unit || "in"}`;
+        const printableLabel = this._formatEmptyCanvasPrintableSizeLabel(side);
+        return printableLabel ? `${sheetLabel} · ${printableLabel}` : sheetLabel;
     },
 
     _computeEmptyCanvasDisplaySize(stageW, stageH) {
@@ -265,6 +564,7 @@ export const fabricEmptyCanvasMixin = {
         this._initCenterGuides(fabricCanvas);
         this._addDropListeners(wrapper, fabricCanvas, area.id, side);
         this._applyEmptyCanvasBackground(side);
+        this._applyEmptyCanvasMarginsForCanvas(fabricCanvas, side);
         fabricCanvas.requestRenderAll();
     },
 
@@ -352,6 +652,7 @@ export const fabricEmptyCanvasMixin = {
             if (entry) {
                 entry.layout = layout;
             }
+            this._applyEmptyCanvasMarginsForCanvas(canvas, side);
         }
         this._applyEmptyCanvasBackground(side);
     },
@@ -424,7 +725,7 @@ export const fabricEmptyCanvasMixin = {
             stageH - border
         );
 
-        const sizeLabel = this._formatEmptyCanvasSizeLabel();
+        const sizeLabel = this._formatEmptyCanvasSizeLabel(side);
         if (sizeLabel) {
             const fontSize = Math.max(11, Math.round(Math.min(stageW, stageH) / 28));
             ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
@@ -495,13 +796,27 @@ export const fabricEmptyCanvasMixin = {
         if (!pane || pane.querySelector(".tus-empty-canvas-stage-footer")) {
             return;
         }
-        const label = this._formatEmptyCanvasSizeLabel();
+        const label = this._formatEmptyCanvasSizeLabel(side);
         const bgColor = this._getEmptyCanvasBackground(side);
+        const marginMm = this._getEmptyCanvasMarginMm(side);
+        const maxMarginMm = this._getMaxAllowedEmptyCanvasMarginMm();
         const footer = document.createElement("div");
         footer.className = "tus-empty-canvas-stage-footer";
         footer.dataset.side = side;
         footer.innerHTML = `
             <div class="tus-empty-canvas-size-label">${label || ""}</div>
+            <label class="tus-empty-canvas-margin-control">
+                <span class="tus-empty-canvas-margin-label">${_t("Margin")} (mm)</span>
+                <input type="number"
+                       class="tus-empty-canvas-margin-input"
+                       data-side="${side}"
+                       min="0"
+                       max="${maxMarginMm}"
+                       step="0.5"
+                       value="${marginMm}"
+                       title="${_t("Uniform margin on all sides")}"/>
+                <span class="tus-empty-canvas-margin-hint">${_t("All sides")}</span>
+            </label>
             <label class="tus-empty-canvas-bg-control">
                 <span class="tus-empty-canvas-bg-label">${_t("Canvas color")}</span>
                 <input type="color"
@@ -538,6 +853,21 @@ export const fabricEmptyCanvasMixin = {
                 }
             }
         );
+        $(document).on(
+            "input change",
+            ".tus-empty-canvas-margin-input",
+            (ev) => {
+                if (!this.emptyCanvasMode) {
+                    return;
+                }
+                const side = ev.currentTarget.dataset.side || this.active_side;
+                const margin = this._setEmptyCanvasMargin(side, ev.currentTarget.value);
+                ev.currentTarget.value = String(margin);
+                if (typeof this.saveState === "function") {
+                    this.saveState();
+                }
+            }
+        );
     },
 
     _syncEmptyCanvasChromeUi() {
@@ -545,11 +875,27 @@ export const fabricEmptyCanvasMixin = {
             return;
         }
         const side = this.active_side || "front";
-        const label = this._formatEmptyCanvasSizeLabel();
-        $(`.tus-empty-canvas-stage-footer .tus-empty-canvas-size-label`).text(label);
+        const label = this._formatEmptyCanvasSizeLabel(side);
+        $(`.tus-empty-canvas-stage-footer[data-side="${side}"] .tus-empty-canvas-size-label`).text(label);
+        const $margin = $(`.tus-empty-canvas-margin-input[data-side="${side}"]`);
+        if ($margin.length) {
+            $margin.attr("max", String(this._getMaxAllowedEmptyCanvasMarginMm()));
+            $margin.val(this._getEmptyCanvasMarginMm(side));
+        }
         const $input = $(`.tus-empty-canvas-bg-input[data-side="${side}"]`);
         if ($input.length) {
             $input.val(this._getEmptyCanvasBackground(side));
+        }
+    },
+
+    _syncEmptyCanvasFooterForSide(side) {
+        const key = side || this.active_side || "front";
+        const label = this._formatEmptyCanvasSizeLabel(key);
+        $(`.tus-empty-canvas-stage-footer[data-side="${key}"] .tus-empty-canvas-size-label`).text(label);
+        const $margin = $(`.tus-empty-canvas-margin-input[data-side="${key}"]`);
+        if ($margin.length) {
+            $margin.attr("max", String(this._getMaxAllowedEmptyCanvasMarginMm()));
+            $margin.val(this._getEmptyCanvasMarginMm(key));
         }
     },
 
@@ -574,6 +920,7 @@ export const fabricEmptyCanvasMixin = {
             }
         }
         this._bindEmptyCanvasChromeEvents();
+        this._syncEmptyCanvasMarginsHiddenInput();
         this._syncEmptyCanvasChromeUi();
 
         // Keep variant swap visible; only hide matrix/color-specific UI.
@@ -582,6 +929,9 @@ export const fabricEmptyCanvasMixin = {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 this._restructureEmptyCanvas({ preserveSelection: true });
+                for (const allowedSide of allowedSides) {
+                    this._applyEmptyCanvasMarginsForSide(allowedSide);
+                }
             });
         });
     },

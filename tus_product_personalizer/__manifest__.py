@@ -1,6 +1,6 @@
 {
     "name": "Odoo Product Personalizer | Web-to-Print Studio | Product Editor, Designer & Customizer | Web2Print",
-    "version": "19.0.0.0.0",
+    "version": "19.0.0.0.10",
     "author": "TechUltra Solutions Private Limited",
     "category": "Ecommerce",
     "live_test_url": "https://youtu.be/9-0NuE8QIgY",
@@ -23,6 +23,7 @@
         "data/data.xml",
         "data/text_template_data.xml",
         "data/canvas_preset_data.xml",
+        "data/canvas_product_option_data.xml",
         "views/fancy_product_view.xml",
         "views/product_loader_snippet.xml",
         "views/product_view.xml",
@@ -33,6 +34,7 @@
         "views/editor_color_palette.xml",
         "views/editor_text_template_views.xml",
         "views/editor_canvas_preset_views.xml",
+        "views/editor_canvas_product_option_views.xml",
         "views/orderline_vdp_views.xml",
         "views/personalizer_menu_items.xml",
         "views/res_config_settings_views.xml",
