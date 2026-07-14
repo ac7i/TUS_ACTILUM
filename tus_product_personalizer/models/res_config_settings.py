@@ -49,6 +49,11 @@ class ResConfigSettings(models.TransientModel):
         related='website_id.personalizer_enable_3d_preview',
         readonly=False,
     )
+    personalizer_enable_texture = fields.Boolean(
+        string="Texture Library",
+        related='website_id.personalizer_enable_texture',
+        readonly=False,
+    )
     personalizer_enable_download = fields.Boolean(
         string="Download",
         related='website_id.personalizer_enable_download',
@@ -57,6 +62,11 @@ class ResConfigSettings(models.TransientModel):
     personalizer_enable_share = fields.Boolean(
         string="Share Design",
         related='website_id.personalizer_enable_share',
+        readonly=False,
+    )
+    personalizer_enable_help = fields.Boolean(
+        string="Designer Help",
+        related='website_id.personalizer_enable_help',
         readonly=False,
     )
     personalizer_enable_matrix = fields.Boolean(

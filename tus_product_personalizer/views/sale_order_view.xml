@@ -6,6 +6,23 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form" />
         <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="is_personalizer_order" invisible="1"/>
+                <button
+                    name="action_print_production_sheet"
+                    type="object"
+                    string="Production Sheet"
+                    class="btn-secondary"
+                    invisible="not is_personalizer_order"
+                />
+                <button
+                    name="action_regenerate_production_sheet"
+                    type="object"
+                    string="Regenerate Production Sheet"
+                    class="btn-secondary"
+                    invisible="not is_personalizer_order or state in ('draft', 'sent', 'cancel')"
+                />
+            </xpath>
             <xpath
                 expr="//page[@name='order_lines']/field[@name='order_line']/list/field[@name='product_template_id']"
                 position="after"

@@ -3,18 +3,7 @@
 import publicWidget from "@web/legacy/js/public/public_widget";
 import { loadJS } from "@web/core/assets";
 import { debounce } from "@web/core/utils/timing";
-import { _t } from "@web/core/l10n/translation";
-import {
-    DEFAULT_FOIL_METAL,
-    DEFAULT_RELIEF_MM,
-    FINISH_DEBOSS,
-    FINISH_EMBOSS,
-    FINISH_FOIL_EMBOSS,
-    applyCanvasFinishPreview,
-    applyFinishFields,
-    ensureObjectFinishDefaults,
-    isFoilFinish,
-} from "../3d/finish_effects";
+import { DEFAULT_RELIEF_MM } from "../3d/finish_effects";
 import { TusPBRViewer } from "../3d/pbr_viewer";
 import { TusViewerControls } from "../3d/viewer_controls";
 import { bakeMapsForSide } from "../3d/texture_baker";
@@ -77,10 +66,17 @@ export function registerFabricRefLayout() {
             "click .tus-menu-share": "_onTusMenuShare",
             "click .tus-menu-save-product": "_onTusMenuSaveProduct",
             "click .tus-menu-exit": "_onTusMenuExit",
-            "change .tus-finish-effect": "_onFinishEffectChange",
-            "input .tus-finish-relief": "_onFinishReliefChange",
-            "change .tus-finish-varnish": "_onFinishVarnishChange",
-            "change .tus-finish-foil-metal": "_onFinishFoilMetalChange",
+            "click .tus-texture-file-btn": "_onFinishTextureFileBtn",
+            "change .tus-texture-file-input": "_onFinishTextureFileChange",
+            "click .tus-texture-file-clear": "_onFinishTextureFileClear",
+            "change .tus-texture-enable": "_onFinishTextureEnableChange",
+            "change .tus-texture-intensity": "_onFinishTextureIntensityChange",
+            "change .tus-varnish-type": "_onFinishVarnishTypeChange",
+            "change .tus-varnish-cover": "_onFinishVarnishCoverChange",
+            "click .tus-varnish-file-btn": "_onFinishVarnishFileBtn",
+            "click .tus-varnish-file-clear": "_onFinishVarnishFileClear",
+            "change .tus-varnish-file-input": "_onFinishVarnishFileChange",
+            "input .tus-varnish-zones": "_onFinishVarnishZonesInput",
         }),
 
         start: async function () {
@@ -262,6 +258,7 @@ export function registerFabricRefLayout() {
                 || parseFloat($priceEl.data("base-price"))
                 || 0;
             const designPrice = this._calculateDesignPrice ? this._calculateDesignPrice() : 0;
+            const texturePrice = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
             let printingCost = 0;
             let printingLabel = "Printing";
             if (this.selectedPrintingMethod) {
@@ -269,7 +266,7 @@ export function registerFabricRefLayout() {
                     + parseFloat(this.selectedPrintingMethod.unit_cost || 0);
                 printingLabel = this.selectedPrintingMethod.name || printingLabel;
             }
-            const total = basePrice + designPrice + printingCost;
+            const total = basePrice + designPrice + texturePrice + printingCost;
 
             this.$(".tus-footer-pop-base-val").text(fmt(basePrice));
             this.$(".tus-footer-pop-total-val").text(fmt(total));
@@ -281,6 +278,15 @@ export function registerFabricRefLayout() {
                 this.$(".tus-footer-pop-design-val").text(fmt(designPrice));
             } else {
                 $designRow.addClass("d-none");
+            }
+
+            const showTexture = $('input[name="show_texture"]').val() === "1";
+            const $textureRow = this.$(".tus-footer-pop-texture");
+            if (showTexture && texturePrice > 0) {
+                $textureRow.removeClass("d-none");
+                this.$(".tus-footer-pop-texture-val").text(fmt(texturePrice));
+            } else {
+                $textureRow.addClass("d-none");
             }
 
             const showPrinting = $('input[name="show_printing_methods"]').val() === "1";
@@ -607,13 +613,29 @@ export function registerFabricRefLayout() {
                     this._pbrViewer = new TusPBRViewer(container);
                     await this._pbrViewer.init();
                     this._viewerControls = new TusViewerControls(container, {
+                        showVarnish: false,
+                        showRelief: false,
                         onSettingsChange: (settings) => {
                             this._3dPreviewSettings = { ...this._3dPreviewSettings, ...settings };
+                            const obj = this._getFinishTargetObject?.();
+                            if (obj) {
+                                if (settings.varnishType !== undefined) {
+                                    obj.tusVarnishType = settings.varnishType;
+                                }
+                                if (settings.reliefMm !== undefined) {
+                                    obj.tusTextureIntensityMm = String(settings.reliefMm);
+                                    obj.tusTextureActive = true;
+                                }
+                                this._syncFinishPanelFromObject?.(obj);
+                            }
                             this._schedule3DPreviewRefresh();
                         },
                         onResetView: () => this._pbrViewer?.resetView(),
                     });
-                    if (this._3dPreviewSettings) {
+                    const activeObj = this._getFinishTargetObject?.();
+                    if (activeObj) {
+                        this._sync3DControlsFromObject(activeObj);
+                    } else if (this._3dPreviewSettings) {
                         this._viewerControls.setSettings(this._3dPreviewSettings);
                     }
                 } else {
@@ -679,9 +701,22 @@ export function registerFabricRefLayout() {
             }
             const container = this._getActive3DContainer();
             const side = this._getActiveSide();
+            const sideFinish = this._get3DFinishForSide
+                ? this._get3DFinishForSide(side)
+                : {
+                      varnishType: "none",
+                      reliefMm: this._3dPreviewSettings?.reliefMm ?? DEFAULT_RELIEF_MM,
+                      textureFileData: null,
+                      varnishAreaFileData: null,
+                      varnishCoverMode: "all",
+                  };
             const maps = await bakeMapsForSide(this, side, {
-                globalVarnish: this._3dPreviewSettings?.varnishType || "none",
-                reliefMm: this._3dPreviewSettings?.reliefMm ?? DEFAULT_RELIEF_MM,
+                // Layer varnish must NOT be promoted to a global side-wide coat.
+                globalVarnish: "none",
+                reliefMm: sideFinish.reliefMm ?? DEFAULT_RELIEF_MM,
+                textureFileData: sideFinish.textureFileData || null,
+                varnishAreaFileData: sideFinish.varnishAreaFileData || null,
+                varnishCoverMode: sideFinish.varnishCoverMode || "all",
             });
             if (!maps) {
                 if (container) {
@@ -698,105 +733,12 @@ export function registerFabricRefLayout() {
                 this._clear3DFallback(container);
             }
             await this._pbrViewer.updateMaps(maps, {
-                varnishType: this._3dPreviewSettings?.varnishType || "none",
-                reliefMm: this._3dPreviewSettings?.reliefMm ?? DEFAULT_RELIEF_MM,
-            });
-        },
-
-        _syncFinishPanelFromObject: function (obj) {
-            if (!obj) {
-                return;
-            }
-            ensureObjectFinishDefaults(obj);
-            const effect = obj.tusFinishEffect || "none";
-            const relief = obj.tusReliefMm ?? DEFAULT_RELIEF_MM;
-            const varnish = obj.tusVarnishType || "none";
-            const foilMetal = obj.tusFoilMetal || DEFAULT_FOIL_METAL;
-            this.$(".tus-finish-effect").val(effect);
-            this.$(".tus-finish-relief").val(relief);
-            this.$(".tus-finish-relief-value").text(`${parseFloat(relief).toFixed(2)} mm`);
-            this.$(".tus-finish-varnish").val(varnish);
-            this.$(".tus-finish-foil-metal").val(foilMetal);
-            this._updateFinishPanelVisibility(effect);
-        },
-
-        _updateFinishPanelVisibility: function (effect) {
-            const showRelief =
-                effect === FINISH_EMBOSS ||
-                effect === FINISH_DEBOSS ||
-                effect === FINISH_FOIL_EMBOSS;
-            const showFoilMetal = isFoilFinish(effect);
-            const showVarnish = !isFoilFinish(effect);
-            this.$(".tus-finish-relief-row").toggleClass("d-none", !showRelief);
-            this.$(".tus-finish-foil-row").toggleClass("d-none", !showFoilMetal);
-            this.$(".tus-finish-varnish-row").toggleClass("d-none", !showVarnish);
-        },
-
-        _getFinishTargetObjects: function () {
-            const active = this.currentElement || this.canvas?.getActiveObject();
-            if (!active) {
-                return [];
-            }
-            if (active.type === "activeSelection" && typeof active.getObjects === "function") {
-                return active.getObjects().filter((o) => !o.center_line && !o.extra_elem);
-            }
-            return [active];
-        },
-
-        _getAllCanvasFinishTargets: function () {
-            if (!this.canvas) {
-                return [];
-            }
-            return this.canvas
-                .getObjects()
-                .filter((o) => !o.center_line && !o.extra_elem && !o.tusFoilPreviewOverlay);
-        },
-
-        _applyFinishToTargets: function (partial, options = {}) {
-            const targets = options.applyToAllCanvas
-                ? this._getAllCanvasFinishTargets()
-                : this._getFinishTargetObjects();
-            if (!targets.length) {
-                return;
-            }
-            const previewTasks = [];
-            for (const obj of targets) {
-                applyFinishFields(obj, partial);
-                previewTasks.push(applyCanvasFinishPreview(obj));
-            }
-            Promise.all(previewTasks).then(() => this.canvas?.requestRenderAll());
-            this._schedule3DPreviewRefresh();
-            this.saveState();
-        },
-
-        _onFinishEffectChange: function (ev) {
-            const effect = ev.currentTarget.value;
-            this._updateFinishPanelVisibility(effect);
-            const partial = { tusFinishEffect: effect };
-            if (isFoilFinish(effect)) {
-                partial.tusFoilMetal =
-                    this.$(".tus-finish-foil-metal").val() || DEFAULT_FOIL_METAL;
-            } else {
-                partial.tusFoilMetal = null;
-            }
-            this._applyFinishToTargets(partial);
-        },
-
-        _onFinishReliefChange: function (ev) {
-            const reliefMm = parseFloat(ev.currentTarget.value) || 0;
-            this.$(".tus-finish-relief-value").text(`${reliefMm.toFixed(2)} mm`);
-            this._applyFinishToTargets({ tusReliefMm: reliefMm });
-        },
-
-        _onFinishVarnishChange: function (ev) {
-            this._applyFinishToTargets({
-                tusVarnishType: ev.currentTarget.value,
-            });
-        },
-
-        _onFinishFoilMetalChange: function (ev) {
-            this._applyFinishToTargets({
-                tusFoilMetal: ev.currentTarget.value,
+                varnishType: maps.primaryVarnishType || "none",
+                // Prefer bake-derived max relief so gloss on another layer never zeroes emboss.
+                reliefMm:
+                    Number(maps.maxReliefMm) > 0
+                        ? Number(maps.maxReliefMm)
+                        : sideFinish.reliefMm ?? DEFAULT_RELIEF_MM,
             });
         },
 
@@ -887,9 +829,12 @@ export function registerFabricRefLayout() {
                 return;
             }
             let dirty = !!hasDesign;
+            if (!dirty && this._hasAnyTextureApplied && this._hasAnyTextureApplied()) {
+                dirty = true;
+            }
             if (!dirty && this.canvas) {
                 const objects = this.canvas.getObjects().filter(
-                    (o) => !o.custom || o.custom.kind !== "design_area"
+                    (o) => (!o.custom || o.custom.kind !== "design_area") && !o.tusTextureLayer
                 );
                 dirty = objects.length > 0;
             }
@@ -901,6 +846,10 @@ export function registerFabricRefLayout() {
             this.$(".tus-menu-save-product")
                 .prop("disabled", !dirty)
                 .toggleClass("disabled", !dirty);
+        },
+
+        _updateAddToCartButtonState: function () {
+            this._updateSaveProductState();
         },
 
         _scrollActiveToolIntoView: function () {

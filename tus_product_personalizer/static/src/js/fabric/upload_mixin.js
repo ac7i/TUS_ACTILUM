@@ -97,22 +97,32 @@ export const fabricUploadMixin = {
     },
 
     _imageItemHtml: function (result) {
+        const thumbSrc = result.id
+            ? `/web/image/canvas.image/${result.id}/file/256x256`
+            : result.image_datas || "";
+        const name = String(result.name || "Upload").replace(/"/g, "&quot;");
+        // Match variants (.fab_swap_container): fixed 110px media box + 2-col parent grid.
         return `
-            <div class="upload-library-item image-item" data-id="${result.id}">
-                <div class="upload-library-item__media">
-                    <img src="${result.image_datas}"
+            <div class="upload-thumb-card image-item"
+                 data-id="${result.id}"
+                 style="position: relative; min-width: 0; background: #fff; border: 1px solid #eee; border-radius: 10px; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                <div class="upload-thumb-card__media"
+                     style="display: flex; align-items: center; justify-content: center; height: 110px; padding: 10px; background: #fbfbfc; box-sizing: border-box;">
+                    <img src="${thumbSrc}"
                          class="default-canvas-img"
-                         alt="${result.name}"/>
+                         alt="${name}"
+                         loading="lazy"
+                         style="max-width: 100%; max-height: 90px; width: auto; height: auto; object-fit: contain; display: block;"/>
                 </div>
-                <div class="upload-library-item__overlay">
+                <div class="upload-thumb-card__actions">
                     <button type="button"
-                            class="upload-library-item__action tus-remove-bg-thumb-btn"
+                            class="tus-remove-bg-thumb-btn"
                             title="Remove background"
                             aria-label="Remove background">
                         <i class="fa fa-magic"></i>
                     </button>
                     <button type="button"
-                            class="upload-library-item__action upload-library-item__action--danger delete-btn"
+                            class="delete-btn"
                             title="Delete"
                             aria-label="Delete">
                         <i class="fa fa-trash-o"></i>
@@ -122,10 +132,30 @@ export const fabricUploadMixin = {
         `;
     },
 
+    _uploadThumbsInlineStyle: function (hidden) {
+        if (hidden) {
+            return "display: none;";
+        }
+        return "display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px; padding: 4px 16px 16px; width: 100%; box-sizing: border-box;";
+    },
+
+    _normalizeUploadLibraryLayout: function () {
+        const grid =
+            this.el?.querySelector?.(".default_images .fab_upload_thumbs") ||
+            document.querySelector(".default_images .fab_upload_thumbs");
+        if (!grid) {
+            return;
+        }
+        const hidden = grid.classList.contains("d-none");
+        grid.setAttribute("style", this._uploadThumbsInlineStyle(hidden));
+    },
+
     _ensureUploadLibraryGrid: function () {
-        let $grid = $(".default_images .upload-library-grid");
+        let $grid = $(".default_images .fab_upload_thumbs").first();
         if (!$grid.length) {
-            $grid = $('<div class="upload-library-grid"></div>');
+            $grid = $(
+                `<div class="fab_upload_thumbs" style="${this._uploadThumbsInlineStyle(false)}"></div>`
+            );
             const $hint = $(".default_images .upload-library-hint");
             if ($hint.length) {
                 $hint.after($grid);
@@ -133,6 +163,7 @@ export const fabricUploadMixin = {
                 $(".default_images").prepend($grid);
             }
         }
+        this._normalizeUploadLibraryLayout();
         return $grid;
     },
 
@@ -141,6 +172,7 @@ export const fabricUploadMixin = {
         const $empty = $(".default_images .upload-library-empty");
         const hasItems = $grid.find(".image-item").length > 0;
         $grid.toggleClass("d-none", !hasItems);
+        this._normalizeUploadLibraryLayout();
         if ($empty.length) {
             $empty.toggleClass("d-none", hasItems);
         } else if (!hasItems) {
@@ -154,15 +186,13 @@ export const fabricUploadMixin = {
         if (!result || !result.id) {
             return;
         }
-        if (
-            $(".default_images .upload-library-grid").find(
-                `.image-item[data-id="${result.id}"]`
-            ).length
-        ) {
+        const $grid = this._ensureUploadLibraryGrid();
+        if ($grid.find(`.image-item[data-id="${result.id}"]`).length) {
             return;
         }
-        this._ensureUploadLibraryGrid().append(this._imageItemHtml(result));
+        $grid.append(this._imageItemHtml(result));
         this._syncUploadLibraryEmptyState();
+        this._normalizeUploadLibraryLayout();
     },
 
     _isEmbeddedPhotoSvgFromUpload: function (result, svgText) {

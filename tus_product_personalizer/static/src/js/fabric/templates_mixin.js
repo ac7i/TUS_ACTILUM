@@ -12,6 +12,9 @@ _canvasHasUserArtwork: function () {
 },
 
 _sideHasUserArtwork: function (side) {
+    if (this._sideHasTexture && this._sideHasTexture(side)) {
+        return true;
+    }
     for (const entry of this.canvasesBySide[side] || []) {
         if (this._getUserArtworkObjects(entry.canvas).length) {
             return true;
@@ -27,6 +30,7 @@ _getUserArtworkObjects: function (canvas) {
     return canvas.getObjects().filter(
         (o) => !o.extra_elem
             && !o.center_line
+            && !o.tusTextureLayer
             && o.custom?.kind !== "design_area"
             && !o.tusFoilPreviewOverlay
     );

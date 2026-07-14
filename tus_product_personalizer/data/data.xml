@@ -25,5 +25,13 @@
             <field name="purchase_ok" eval="False"/>
             <field name="description_sale">Printing method surcharge (setup + unit cost).</field>
         </record>
+        <record id="product_texture_charge" model="product.product">
+            <field name="name">Texture Charge</field>
+            <field name="type">service</field>
+            <field name="lst_price">0.0</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="description_sale">Surcharge for selected background textures (priced per m²).</field>
+        </record>
     </data>
 </odoo>

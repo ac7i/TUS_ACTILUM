@@ -5,7 +5,6 @@ import { debounce } from "@web/core/utils/timing";
 import { loadJS } from "@web/core/assets";
 import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/l10n/translation";
-import { renderToFragment } from "@web/core/utils/render";
 import { removeBackgroundFromImage } from "./background_removal";
 import {
     applyAreaGeometryStyles,
@@ -18,17 +17,8 @@ import {
     stagePointsToCanvas,
 } from "./design_area_shapes";
 import {
-    DEFAULT_FOIL_METAL,
     DEFAULT_RELIEF_MM,
-    FINISH_DEBOSS,
-    FINISH_EMBOSS,
-    FINISH_FOIL_EMBOSS,
-    applyCanvasFinishPreview,
-    applyCanvasFinishPreviewToCanvas,
-    applyFinishFields,
     ensureObjectFinishDefaults,
-    isFoilFinish,
-    serializeFinishFields,
     serializeGlobalFinishSettings,
 } from "./3d/finish_effects";
 import { registerFabricFinishProperties } from "./fabric/fabric_props";
@@ -42,6 +32,9 @@ import { fabricUploadMixin } from "./fabric/upload_mixin";
 import { fabricQrMixin } from "./fabric/qr_mixin";
 import { fabricVdpMixin } from "./fabric/vdp_mixin";
 import { fabricEmptyCanvasMixin } from "./fabric/empty_canvas_mixin";
+import { fabricTextureMixin } from "./fabric/texture_mixin";
+import { fabricFinishUploadMixin } from "./fabric/finish_upload_mixin";
+import { fabricHelpMixin } from "./fabric/help_mixin";
 import { registerFabricRefLayout } from "./fabric/ref_layout";
 import {
     buildPaletteCmykMap,
@@ -60,9 +53,16 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
     ...fabricQrMixin,
     ...fabricVdpMixin,
     ...fabricEmptyCanvasMixin,
+    ...fabricTextureMixin,
+    ...fabricFinishUploadMixin,
+    ...fabricHelpMixin,
     selector: ".fabric_container",
     events: {
         "click .fab_item": "_onChangeOption",
+        "click #tus-help-btn": "_onHelpButtonClick",
+        "click .tus-help-dialog-close": "_onHelpDialogClose",
+        "click .tus-help-backdrop": "_onHelpBackdropClick",
+        "click .tus-help-copy-link": "_onHelpCopyLink",
         "click .ai-generate-btn": "_onGenerateAiImages",
         "click .ai-generate-more-btn": "_onGenerateAiImages",
         "click .ai-result-item": "_onAddAiImageToCanvas",
@@ -74,8 +74,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         "click .qr-color-swatch": "_onQrColorSwatchClick",
         "click .add_qr_code": "_onAddQrCode",
         "click .delete-btn": "_onDeleteImage",
-        'click .default-canvas-img': '_onAddDefaultImage',
-        'click .upload-library-item': '_onAddDefaultImage',
+        'click .default_images .image-item': '_onAddDefaultImage',
         "click .add_new_text": "_onAddText",
         "keyup .edit_text": "_onEditText",
         "input #colorPicker": "_onColorPick",
@@ -125,6 +124,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         "click .load_more_clipart": "_onLoadMoreClipart",
         "click .toggle_clipart_view": "_onToggleClipartView",
         "input #clipart-search-input": "_onSearchClipartInput",
+        "click .fab_texture_option": "_onSelectTexture",
+        "click .fab_texture_remove_btn": "_onRemoveTexture",
+        "click .fab_texture_category_btn": "_onTextureCategory",
         'click .add-to-custom-cart': '_onAddToCart',
         'click .btn-buy': '_onBuyNow',
         'click .close-cart': '_onCloseCart',
@@ -182,6 +184,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         this.showMatrixTable = $('input[name="show_matrix_table"]').val() === '1';
         this._initVdpState?.();
         this._initEmptyCanvasState?.();
+        this._initTextureState?.();
+        this._normalizeUploadLibraryLayout?.();
+        this._initFinishUploadState?.();
         this.matrixData = [];
         this.selectedMatrixColor = null;
         this.selectedMatrixProducts = []; // Array of product IDs selected in Step 2
@@ -209,9 +214,6 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         );
         await loadJS(
             "https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"
-        );
-        await loadJS(
-            "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"
         );
         // load font families
         await WebFont.load({
@@ -511,7 +513,10 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         const $item = $(ev.currentTarget).closest(".image-item");
         const $img = $item.find("img.default-canvas-img");
         const imageId = $item.data("id");
-        const src = $img.attr("src");
+        // Always use the full library file for rembg — thumbs are resized for layout only.
+        const src = imageId
+            ? `/web/image/canvas.image/${imageId}/file`
+            : $img.attr("src");
         if (!src) {
             return;
         }
@@ -532,7 +537,12 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     throw new Error(result.error);
                 }
                 if (result.image_datas) {
-                    $img.attr("src", result.image_datas);
+                    $img.attr(
+                        "src",
+                        imageId
+                            ? `/web/image/canvas.image/${imageId}/file/256x256?unique=${Date.now()}`
+                            : result.image_datas
+                    );
                 }
             } else {
                 $img.attr("src", dataUrl);
@@ -912,8 +922,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             strokeColorInput.value = result.sRGBHex;
                             self._onChangeStrokeColor(result.sRGBHex);
                         })
-                            .catch((err) => {
-                                console.log(err);
+                            .catch(() => {
+                                // User cancelled EyeDropper.
                             });
                     }
                 });
@@ -975,8 +985,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             };
                             self._onChangeShadow(syntheticEvent);
                         })
-                            .catch((err) => {
-                                console.log(err);
+                            .catch(() => {
+                                // User cancelled EyeDropper.
                             });
                     }
                 });
@@ -1137,6 +1147,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         // refresh area selector for the chosen side
         this._renderAreaSelectorForSide(side, this.active_area_id);
         this._syncEmptyCanvasChromeUi?.();
+        this._syncTexturePanelUi?.(side);
 
         clearTimeout(this._resizeTimeout);
         this._resizeTimeout = setTimeout(() => {
@@ -1271,6 +1282,12 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             // Add drag and drop support for images
             this._addDropListeners(wrapper, fabricCanvas, area.id, side);
 
+            const textureMeta = this.textureBySide?.[side];
+            if (textureMeta) {
+                fabricCanvas._tusSide = side;
+                this._applyTextureToCanvas(fabricCanvas, textureMeta);
+            }
+
         };
         ensureLayout(image_el);
     },
@@ -1374,6 +1391,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             if (shouldScale) {
                                 const objects = canvas.getObjects();
                                 objects.forEach(function (obj) {
+                                    if (obj.tusTextureLayer) {
+                                        return;
+                                    }
                                     // Scale position
                                     if (obj.left !== undefined) {
                                         obj.left = obj.left * scaleX;
@@ -1423,6 +1443,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             canvas.getObjects().forEach((o) => {
                                 this._clampObjectToDesignArea(canvas, o);
                             });
+                            this._rescaleTextureBackground?.(canvas);
 
                             // 8️⃣ Restore selection after resize (must stay selectable for toolbar)
                             if (activeObj) {
@@ -1475,6 +1496,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     this._syncPreviewBoxToImage(root);
                 }
             });
+            this._rescaleAllTextures?.();
         } finally {
             this._restructuringCanvas = false;
         }
@@ -1851,6 +1873,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         c.on({
             "object:added": (event) => {
                 const obj = event.target;
+                if (obj?.tusTextureLayer) {
+                    return;
+                }
                 if (obj && obj.type == "image") {
                     if (!obj.filters) {
                         obj.filters = [];
@@ -1864,7 +1889,6 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 }
                 if (obj) {
                     ensureObjectFinishDefaults(obj);
-                    applyCanvasFinishPreview(obj).then(() => c.requestRenderAll());
                     self._clampObjectToDesignArea(c, obj);
                 }
                 if (!self.historyProcessing) {
@@ -2134,6 +2158,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             obj &&
             !obj.center_line &&
             !obj.extra_elem &&
+            !obj.tusTextureLayer &&
             !obj.locked
         );
     },
@@ -3545,6 +3570,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         if (option === "clipart") {
             this._renderClipartCategories();
         }
+        if (option === "textures") {
+            this._syncTexturePanelUi?.(this.active_side);
+        }
         if (typeof this._syncOptionsPanelTitle === "function") {
             this._syncOptionsPanelTitle();
         }
@@ -3585,7 +3613,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         var self = this;
         if (
             $(ev.target).closest(
-                ".upload-library-item__action, .delete-btn, .tus-remove-bg-thumb-btn"
+                ".upload-thumb-card__actions button, .delete-btn, .tus-remove-bg-thumb-btn"
             ).length
         ) {
             return;
@@ -3974,12 +4002,12 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             this._syncArtworkToolbarTools(elem);
         } else {
             $(".vectorize-tool").addClass("d-none");
-            $(".finish-tool").removeClass("d-none");
         }
-        this._syncFinishPanelFromObject(elem);
-        const finishEffect = elem.tusFinishEffect || "none";
-        if (finishEffect !== "none") {
-            applyCanvasFinishPreview(elem).then(() => elem.canvas?.requestRenderAll());
+        if (this._isFinishToolEnabled?.()) {
+            $(".finish-tool").removeClass("d-none");
+            this._syncFinishPanelFromObject?.(elem);
+        } else {
+            $(".finish-tool").addClass("d-none");
         }
         $(".toolbar").css("transform", "translateY(0%)");
         requestAnimationFrame(() => {
@@ -4064,8 +4092,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         $(".toolbar").find(".collapse").removeClass("show");
         $(".toolbar").css("transform", "translateY(-400%)");
         $(".new_toolbar_container").addClass("d-none");
-        $(".finish-tool").addClass("d-none");
         $(".vectorize-tool").addClass("d-none");
+        $(".finish-tool").addClass("d-none");
         $(".fabric_container").removeClass("tus-toolbar-open");
         this.$(".vdp_text_tool").addClass("d-none");
         this._syncVdpUiFromSelection?.(null);
@@ -4904,6 +4932,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             totalQty += qty;
             let basePrice = parseFloat($el.attr('data-price') || 0);
             const designPrice = parseFloat($el.attr('data-design-price') || 0);
+            const texturePrice = parseFloat($el.attr('data-texture-price') || 0);
             const pureBase = parseFloat($('.designer-price').attr('data-base-price'))
                 || parseFloat($('.designer-price').data('base-price'))
                 || 0;
@@ -4915,6 +4944,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 productId: parseInt($el.attr('data-id'), 10),
                 basePrice,
                 designPrice,
+                texturePrice,
                 qty,
             });
         });
@@ -4955,8 +4985,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 console.warn("Failed to refresh design data for Buy Now:", err);
             }
 
-            for (const { $el, productId, basePrice, designPrice, qty } of cartLines) {
-                const totalPrice = basePrice + designPrice + printingPerUnit;
+            for (const { $el, productId, basePrice, designPrice, texturePrice, qty } of cartLines) {
+                const totalPrice = basePrice + designPrice + texturePrice + printingPerUnit;
 
                 let design = [];
                 const designAttr = $el.attr("data-design");
@@ -5010,6 +5040,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     product_id: productId,
                     base_price: basePrice,
                     design_price: designPrice,
+                    texture_price: texturePrice,
+                    texture_by_side: this._getTexturePayloadForCart?.() || {},
                     price: totalPrice,
                     qty: lineQty,
                     design: vdpPayload ? [] : (design || []),
@@ -5070,29 +5102,34 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         let totalQty = 0;
         let productTotal = 0;
         let designTotal = 0;
+        let textureTotal = 0;
 
         this.$items.find('.cart-item').each(function () {
             // Use .data() first as it contains the updated value from qty buttons
             let qty = $(this).data('qty') || parseInt($(this).attr('data-qty')) || 0;
             let productPrice = $(this).data('price') || parseFloat($(this).attr('data-price')) || 0;
             let dPrice = $(this).data('design-price') || parseFloat($(this).attr('data-design-price')) || 0;
+            let tPrice = $(this).data('texture-price') || parseFloat($(this).attr('data-texture-price')) || 0;
 
             totalQty += qty;
             productTotal += qty * productPrice;
             designTotal += qty * dPrice;
+            textureTotal += qty * tPrice;
         });
 
         const printingTotal = this._getPrintingUnitCostForQty(totalQty) * totalQty;
 
-        const grandTotal = productTotal + designTotal + printingTotal;
+        const grandTotal = productTotal + designTotal + textureTotal + printingTotal;
 
         this.$totalQty.text(`Total Quantity (${totalQty})`);
 
         const symbol = this._getCurrencySymbol();
 
         const showDesignPrice = $('input[name="show_design_price"]').val() === '1';
+        const showTexture = $('input[name="show_texture"]').val() === '1';
         const $itemsRow = this.$sidebar.find('.items-total-row');
         const $designRow = this.$sidebar.find('.design-total-row');
+        const $textureRow = this.$sidebar.find('.texture-total-row');
         const $printingRow = this.$sidebar.find('.printing-row');
 
         if (showDesignPrice) {
@@ -5103,6 +5140,13 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         } else {
             $itemsRow.addClass('d-none');
             $designRow.addClass('d-none');
+        }
+
+        if (showTexture && textureTotal > 0) {
+            $textureRow.find('.texture-total-price').text(`${symbol}${textureTotal.toFixed(2)}`);
+            $textureRow.removeClass('d-none');
+        } else {
+            $textureRow.addClass('d-none');
         }
 
         if (this.selectedPrintingMethod && printingTotal > 0) {
@@ -5258,6 +5302,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     const fabricJSON = fab.toJSON([
                         "id", "locked", "title", "extra_elem", "_curvedMeta",
                         "tusFinishEffect", "tusReliefMm", "tusVarnishType", "tusFoilMetal",
+                        "tusTextureIntensityMm", "tusTextureActive",
+                        "tusVarnishCoverMode", "tusVarnishAreaFile", "tusVarnishAreaFileName",
+                        "tusVarnishZonesDescription",
                         "backend_id", "isVectorSvgGroup", "isEmbeddedPhotoSvg",
                         "tusArtworkTone",
                     ]);
@@ -5308,6 +5355,10 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         if (emptyMeta) {
             bundle.empty_canvas = emptyMeta;
         }
+        const texturePayload = this._getTextureBundlePayload?.();
+        if (texturePayload && Object.keys(texturePayload).length) {
+            bundle.texture_by_side = texturePayload;
+        }
         return bundle;
     },
 
@@ -5344,7 +5395,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         let totalDesignPrice = 0;
         for (const side in this.canvasesBySide) {
             this.canvasesBySide[side].forEach(view => {
-                const objects = view.canvas.getObjects().filter(obj => !obj.center_line);
+                const objects = view.canvas.getObjects().filter(obj => !obj.center_line && !obj.tusTextureLayer);
                 if (objects.length > 0) {
                     const areaPrice = parseFloat(view.price || 0);
                     if (!isNaN(areaPrice)) {
@@ -5360,7 +5411,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         const info = [];
         for (const side in this.canvasesBySide) {
             this.canvasesBySide[side].forEach(view => {
-                const objects = view.canvas.getObjects().filter(obj => !obj.center_line);
+                const objects = view.canvas.getObjects().filter(obj => !obj.center_line && !obj.tusTextureLayer);
                 if (objects.length > 0) {
                     info.push({
                         name: view.name || "Area",
@@ -5375,6 +5426,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
     _updateDesignerPriceDisplay: function () {
         const designPrice = this._calculateDesignPrice();
+        const texturePrice = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
         const $priceEl = $('.designer-price');
         const basePrice = parseFloat($priceEl.attr('data-base-price')) || parseFloat($priceEl.data('base-price')) || 0;
 
@@ -5385,7 +5437,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             printingCost = setupCost + unitCost;
         }
 
-        const totalPrice = basePrice + designPrice + printingCost;
+        const totalPrice = basePrice + designPrice + texturePrice + printingCost;
 
         // Update top header display
         const $headerVal = $priceEl.find('.oe_currency_value');
@@ -5397,6 +5449,14 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         const symbol = this._getCurrencySymbol();
         if (this.$itemsTotalPrice && this.$itemsTotalPrice.length) this.$itemsTotalPrice.text(`${symbol}${basePrice.toFixed(2)}`);
         if (this.$designTotalPrice && this.$designTotalPrice.length) this.$designTotalPrice.text(`${symbol}${designPrice.toFixed(2)}`);
+        const $textureTotalPrice = this.$sidebar?.find('.texture-total-price');
+        if ($textureTotalPrice?.length) {
+            $textureTotalPrice.text(`${symbol}${texturePrice.toFixed(2)}`);
+        }
+        const $textureRow = this.$sidebar?.find('.texture-total-row');
+        if ($textureRow?.length) {
+            $textureRow.toggleClass('d-none', !(this.showTexture && texturePrice > 0));
+        }
         if (this.$totalPrice && this.$totalPrice.length) {
             const $sidebarPriceVal = this.$totalPrice.find('.oe_currency_value');
             if ($sidebarPriceVal.length) {
@@ -5614,10 +5674,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                                     );
                                 }
                                 this._tagTemplateLayers(entry.canvas);
-                                applyCanvasFinishPreviewToCanvas(entry.canvas).then(() => {
-                                    entry.canvas.requestRenderAll();
-                                    resolve();
-                                });
+                                entry.canvas.requestRenderAll();
+                                resolve();
                             });
                         } catch (e) {
                             console.warn("Failed loading area JSON", side, areaSave.area_id, e);
@@ -5677,6 +5735,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             }
             this._syncEmptyCanvasChromeUi?.();
         }
+
+        await this._restoreTexturesFromBundle?.(bundle);
 
         // Trigger a layout update
         this.restructureCanvas();
@@ -6172,8 +6232,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                         self.currentElement.canvas.renderAll();
                     }
                 })
-                .catch((err) => {
-                    console.log(err);
+                .catch(() => {
+                    // User cancelled EyeDropper.
                 });
         }
     },
@@ -6605,6 +6665,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             || parseFloat($btn.attr('data-price'))
             || 0;
         const designPrice = this._calculateDesignPrice();
+        const texturePrice = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
         const image = $btn.attr('data-image') || '/web/image/product.product/' + productId + '/image_128';
         $('.canvas_switcher').css('z-index', '0')
         let designData = [];
@@ -6619,7 +6680,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             );
 
             // Check if no design data was collected
-            if (designData.length === 0) {
+            if (designData.length === 0 && !(this._hasAnyTextureApplied && this._hasAnyTextureApplied())) {
                 this.notification.add(_t("Please add a design to at least one side before adding to cart."), { type: 'danger' });
                 return; // Exit the function without adding to cart
             }
@@ -6695,7 +6756,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     }).replace(/'/g, "&#39;");
 
                     const cartItemHtml = `
-                        <div class="cart-item" data-id="${rowProductId}" data-color-id="${rowColorId}" data-price="${rowPrice}" data-design-price="${designPrice}" data-qty="${rowQty}" data-design='${JSON.stringify(designData)}' data-vdp='${rowVdpMeta}'>
+                        <div class="cart-item" data-id="${rowProductId}" data-color-id="${rowColorId}" data-price="${rowPrice}" data-design-price="${designPrice}" data-texture-price="${texturePrice}" data-qty="${rowQty}" data-design='${JSON.stringify(designData)}' data-vdp='${rowVdpMeta}'>
                             <img src="${rowImage}" alt="${name}" class="cart-item-img"/>
                             <div class="cart-item-info">
                                 <p class="name">${name} <i class="fa fa-info-circle"></i></p>
@@ -6721,7 +6782,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     : "";
 
                 const cartItemHtml = `
-                    <div class="cart-item" data-id="${productId}" data-color-id="${colorId}" data-price="${basePrice}" data-design-price="${designPrice}" data-qty="${vdpQty}" data-design='${JSON.stringify(designData)}'${vdpMeta ? ` data-vdp='${vdpMeta}'` : ""}>
+                    <div class="cart-item" data-id="${productId}" data-color-id="${colorId}" data-price="${basePrice}" data-design-price="${designPrice}" data-texture-price="${texturePrice}" data-qty="${vdpQty}" data-design='${JSON.stringify(designData)}'${vdpMeta ? ` data-vdp='${vdpMeta}'` : ""}>
                         <img src="${image}" alt="${name}" class="cart-item-img"/>
                         <div class="cart-item-info">
                             <p class="name">${name} <i class="fa fa-info-circle"></i></p>
@@ -7027,7 +7088,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             width: canvas_vals.length === 1 ? canvas_vals[0].width : actual.width,
                             height: canvas_vals.length === 1 ? canvas_vals[0].height : actual.height,
                             unit: actual.unit,
-                            finish_settings: serializeGlobalFinishSettings(self._3dPreviewSettings),
+                            finish_settings: self._getFinishSettingsForSide
+                                ? self._getFinishSettingsForSide(side)
+                                : serializeGlobalFinishSettings(self._3dPreviewSettings),
                         };
                     });
 

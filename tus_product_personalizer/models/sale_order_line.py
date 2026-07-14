@@ -1,4 +1,5 @@
 from odoo import _, api, fields, models
+import json
 
 
 class SaleOrderLine(models.Model):
@@ -93,6 +94,11 @@ class SaleOrderLine(models.Model):
         string="Basic Machining",
         compute="_compute_empty_canvas_display_fields",
     )
+    texture_by_side_json = fields.Text(
+        string="Texture Selection (JSON)",
+        copy=True,
+        help="Per-side texture metadata selected in the designer.",
+    )
 
     @api.depends(
         "empty_canvas_width",
@@ -171,6 +177,76 @@ class SaleOrderLine(models.Model):
         for line in self:
             tmpl = line.product_template_id
             line.is_personalizer_configured = bool(tmpl.views) or bool(tmpl.empty_canvas)
+
+    def _is_personalizer_line(self):
+        self.ensure_one()
+        return bool(self.uploaded_design_ids or self.empty_canvas_width)
+
+    def _get_production_sheet_line_data(self):
+        self.ensure_one()
+        side_order = {"front": 0, "back": 1, "left": 2, "right": 3}
+        sides = [
+            design._get_production_sheet_side_data()
+            for design in self.uploaded_design_ids.sorted(
+                key=lambda d: side_order.get(d.uploaded_type or "", 99)
+            )
+        ]
+
+        vdp_data = None
+        if self.vdp_enabled and self.vdp_record_ids:
+            field_names = []
+            if self.vdp_field_names:
+                try:
+                    parsed = json.loads(self.vdp_field_names)
+                    if isinstance(parsed, list):
+                        field_names = parsed
+                except (TypeError, ValueError):
+                    field_names = []
+            rows = []
+            for record in self.vdp_record_ids.sorted(key=lambda r: (r.sequence, r.id)):
+                row_dict = record._get_row_dict()
+                rows.append({
+                    "name": record.name,
+                    "state": record.state,
+                    "values": row_dict,
+                    "columns": [
+                        row_dict.get(field_name, "")
+                        for field_name in field_names
+                    ] if field_names else [],
+                    "values_display": ", ".join(
+                        f"{key}: {value}"
+                        for key, value in row_dict.items()
+                        if value not in (None, "")
+                    ),
+                })
+            vdp_data = {
+                "field_names": field_names,
+                "rows": rows,
+                "count": len(rows),
+            }
+
+        variant_attrs = ", ".join(
+            ptav.display_name
+            for ptav in self.product_id.product_template_attribute_value_ids
+        )
+        return {
+            "line_id": self.id,
+            "product_name": self.product_id.display_name,
+            "product_code": self.product_id.default_code or "",
+            "quantity": self.product_uom_qty,
+            "uom": self.product_uom_id.name,
+            "printing_method": self.printing_method_id.name
+            if self.printing_method_id
+            else "",
+            "canvas_size": self.empty_canvas_size_label or "",
+            "canvas_finish": self.empty_canvas_finish_label or "",
+            "print_quality": self.empty_canvas_print_quality_label or "",
+            "print_mode": self.empty_canvas_print_mode_label or "",
+            "machining": self.empty_canvas_machining_summary or "",
+            "variant_attributes": variant_attrs,
+            "sides": sides,
+            "vdp": vdp_data,
+        }
 
     def view_uploaded_design(self):
         return {

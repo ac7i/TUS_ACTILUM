@@ -97,6 +97,8 @@ const TUS_PANEL_TITLES = {
     ai: "AI",
     templates: "Templates",
     vdp: "VDP",
+    textures: "Textures",
+    finish: "Print Finish",
 };
 
 const TUS_SKIP_INFO_KEY = "tus_personalizer_skip_product_info";
@@ -108,6 +110,12 @@ export const TUS_FABRIC_CUSTOM_PROPS = [
     "tusReliefMm",
     "tusVarnishType",
     "tusFoilMetal",
+    "tusTextureIntensityMm",
+    "tusTextureActive",
+    "tusVarnishCoverMode",
+    "tusVarnishAreaFile",
+    "tusVarnishAreaFileName",
+    "tusVarnishZonesDescription",
     "tusFinishColorBackup",
     "tusFinishPreviewActive",
     "tusCmyk",

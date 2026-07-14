@@ -52,6 +52,25 @@ class ProductTemplate(models.Model):
         help="Allow customers to upload a dataset and print unique text per item (e.g. names on mugs).",
     )
     show_vdp_config = fields.Boolean(compute="_compute_show_vdp_config")
+    personalizer_enable_texture = fields.Boolean(
+        string="Enable Texture Library",
+        default=False,
+        help="Show the Texture Library in the designer for this product "
+             "(requires Texture Library in website settings).",
+    )
+    show_texture_config = fields.Boolean(compute="_compute_show_texture_config")
+    personalizer_enable_finish_texture = fields.Boolean(
+        string="Texture (Emboss File)",
+        default=False,
+        help="Let customers upload a texture file and choose an emboss intensity "
+             "per print side in the designer Print Finish panel.",
+    )
+    personalizer_enable_finish_varnish = fields.Boolean(
+        string="Varnish",
+        default=False,
+        help="Let customers choose a varnish type (gloss/satin) and the area to "
+             "cover per print side in the designer Print Finish panel.",
+    )
     empty_canvas = fields.Boolean(
         string="Empty Canvas",
         default=False,
@@ -114,6 +133,12 @@ class ProductTemplate(models.Model):
         enable_3d = website.personalizer_enable_3d_preview if website else False
         for template in self:
             template.show_3d_preview_config = enable_3d
+
+    def _compute_show_texture_config(self):
+        website = self.env['website'].get_current_website(fallback=True)
+        enable_texture = website.personalizer_enable_texture if website else False
+        for template in self:
+            template.show_texture_config = enable_texture
 
     def _compute_show_printing_method_config(self):
         website = self.env['website'].get_current_website(fallback=True)

@@ -7,6 +7,8 @@ from odoo.exceptions import UserError
 from .finish_constants import (
     DEFAULT_RELIEF_MM,
     DEFAULT_VARNISH_TYPE,
+    TEXTURE_INTENSITY_SELECTION,
+    VARNISH_COVER_MODE_SELECTION,
     VARNISH_TYPE_SELECTION,
 )
 
@@ -55,6 +57,47 @@ class OrderlineDesignUpload(models.Model):
         default=0.0,
         help="Uniform print margin applied on all sides of the empty canvas sheet.",
     )
+    texture_id = fields.Many2one(
+        "editor.texture",
+        string="Background Texture",
+        ondelete="set null",
+        copy=True,
+    )
+    texture_name = fields.Char(string="Texture Name", copy=True)
+    texture_area_m2 = fields.Float(string="Texture Area (m²)", copy=True)
+    texture_price = fields.Float(string="Texture Price", copy=True)
+
+    # Customer-uploaded texture (emboss) processing file for this print side.
+    texture_process_file = fields.Binary(
+        string="Texture File", attachment=True, copy=True,
+        help="Customer-uploaded file used for texture / emboss processing on this side.",
+    )
+    texture_process_filename = fields.Char(string="Texture File Name", copy=True)
+    texture_intensity_mm = fields.Selection(
+        selection=TEXTURE_INTENSITY_SELECTION,
+        string="Texture Intensity",
+        copy=True,
+        help="Emboss relief depth selected by the customer for the texture file.",
+    )
+
+    # Customer varnish coverage settings for this print side.
+    varnish_cover_mode = fields.Selection(
+        selection=VARNISH_COVER_MODE_SELECTION,
+        string="Varnish Area",
+        copy=True,
+        help="How the varnish should be applied: by an uploaded mask file, over "
+             "the whole design, or over described zones.",
+    )
+    varnish_area_file = fields.Binary(
+        string="Varnish Area File", attachment=True, copy=True,
+        help="Customer-uploaded mask file describing the varnish coverage area.",
+    )
+    varnish_area_filename = fields.Char(string="Varnish Area File Name", copy=True)
+    varnish_zones_description = fields.Text(
+        string="Varnish Zones",
+        copy=True,
+        help="Free-text description of the areas the customer wants varnished.",
+    )
 
     def _get_print_color_mode(self):
         website = self.env['website'].get_current_website()
@@ -70,6 +113,86 @@ class OrderlineDesignUpload(models.Model):
         palette_records = self.design_ids.mapped('printable_color_id')
         all_palettes = self.env['editor.color.palette'].search([])
         return build_print_color_map(hex_colors, palette_records, all_palettes)
+
+    def _get_selection_label(self, field_name):
+        self.ensure_one()
+        field = self._fields[field_name]
+        value = self[field_name]
+        if not value:
+            return ""
+        if callable(field.selection):
+            selection = dict(field.selection(self))
+        else:
+            selection = dict(field.selection or [])
+        return selection.get(value, value)
+
+    def _get_production_sheet_side_data(self):
+        self.ensure_one()
+        imprints = []
+        for imprint in self.design_ids:
+            imprints.append({
+                "label": imprint.element_label or "",
+                "size": imprint.size_display or "",
+                "colors": imprint.color_display or "",
+                "finish": imprint._get_selection_label("tus_finish_effect"),
+                "varnish": imprint._get_selection_label("tus_varnish_type"),
+                "foil": imprint._get_selection_label("tus_foil_metal")
+                if imprint.tus_foil_metal
+                else "",
+                "relief_mm": imprint.tus_relief_mm or 0.0,
+            })
+
+        files = []
+        if self.uploaded_attachment:
+            files.append({
+                "name": self._download_filename("png"),
+                "type": _("Preview"),
+            })
+        if self.design_svg:
+            files.append({
+                "name": self._download_filename("svg"),
+                "type": _("Print SVG"),
+            })
+        if self.design_ai:
+            files.append({
+                "name": self._download_filename("ai"),
+                "type": _("Print AI"),
+            })
+        if self.texture_process_file and self.texture_process_filename:
+            files.append({
+                "name": self.texture_process_filename,
+                "type": _("Texture mask"),
+            })
+        if self.varnish_area_file and self.varnish_area_filename:
+            files.append({
+                "name": self.varnish_area_filename,
+                "type": _("Varnish mask"),
+            })
+
+        side_type_labels = dict(self._fields["uploaded_type"].selection)
+        return {
+            "name": self.name,
+            "side": side_type_labels.get(self.uploaded_type, self.uploaded_type or ""),
+            "preview": self.uploaded_attachment,
+            "print_width": self.print_width,
+            "print_height": self.print_height,
+            "print_unit": self.print_unit or "in",
+            "margin_mm": self.empty_canvas_margin_mm,
+            "background_color": self.canvas_background_color or "",
+            "texture_name": self.texture_name or (
+                self.texture_id.name if self.texture_id else ""
+            ),
+            "texture_area_m2": self.texture_area_m2,
+            "texture_intensity": self._get_selection_label("texture_intensity_mm"),
+            "texture_filename": self.texture_process_filename or "",
+            "varnish_type": self._get_selection_label("finish_varnish_type"),
+            "varnish_cover_mode": self._get_selection_label("varnish_cover_mode"),
+            "varnish_zones": self.varnish_zones_description or "",
+            "varnish_filename": self.varnish_area_filename or "",
+            "finish_relief_mm": self.finish_relief_mm,
+            "imprints": imprints,
+            "files": files,
+        }
 
     def _download_filename(self, extension):
         self.ensure_one()

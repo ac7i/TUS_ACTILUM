@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="personalizer_help_page" name="Designer Help Page">
+        <t t-call="website.layout">
+            <div id="wrap" class="oe_structure">
+                <div class="container py-5">
+                    <div class="row justify-content-center">
+                        <div class="col-lg-8">
+                            <h1 class="mb-4" t-esc="help_record.name"/>
+                            <t t-if="help_video_embed_url">
+                                <div class="ratio ratio-16x9 mb-4">
+                                    <iframe t-att-src="help_video_embed_url"
+                                            title="Help video"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowfullscreen="allowfullscreen"/>
+                                </div>
+                            </t>
+                            <div class="tus-help-page-body" t-out="help_record.body"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

@@ -9,7 +9,10 @@ from odoo import fields, http
 from odoo.http import request
 from odoo.tools.image import image_data_uri
 
-from odoo.addons.tus_product_personalizer.models.finish_constants import DEFAULT_FOIL_METAL
+from odoo.addons.tus_product_personalizer.models.finish_constants import (
+    DEFAULT_FOIL_METAL,
+    DEFAULT_RELIEF_MM,
+)
 from odoo.addons.tus_product_personalizer.models.empty_canvas_constants import (
     empty_canvas_line_vals_from_meta,
     empty_canvas_product_options_payload,
@@ -83,13 +86,71 @@ def _get_product_image_uri(product, product_tmpl=None):
 class ProductDesigner(http.Controller):
 
     @staticmethod
-    def _finish_vals_from_side(side_obj):
-        """Map client finish_settings (per print side) to orderline.design.upload fields."""
+    def _strip_data_uri(value):
+        """Return bare base64 payload from a possible data-URI string."""
+        if not value:
+            return False
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", "ignore")
+        if "," in value and value.strip().startswith("data:"):
+            value = value.split(",", 1)[1]
+        return value or False
+
+    VALID_TEXTURE_INTENSITY = {"0.3", "0.5", "0.7", "0.9"}
+    VALID_VARNISH_COVER_MODE = {"by_file", "all", "zones"}
+
+    EMBOSS_FINISH_EFFECTS = frozenset({"emboss", "deboss", "foil_emboss"})
+
+    @classmethod
+    def _finish_vals_from_side(cls, side_obj, enable_texture=True, enable_varnish=True):
+        """Map client finish_settings (per print side) to orderline.design.upload fields.
+
+        Product-level flags gate which groups are persisted so a manipulated
+        client cannot store disabled finish data.
+        """
         fs = side_obj.get("finish_settings") or {}
-        return {
-            "finish_varnish_type": fs.get("varnishType") or "none",
-            "finish_relief_mm": float(fs.get("reliefMm") if fs.get("reliefMm") is not None else 0.6),
+        vals = {
+            "finish_varnish_type": "none",
+            "finish_relief_mm": DEFAULT_RELIEF_MM,
         }
+
+        if enable_texture:
+            texture_active = bool(fs.get("textureActive"))
+            texture_file = cls._strip_data_uri(fs.get("textureFile")) if texture_active else False
+            intensity = str(fs.get("textureIntensityMm") or "").strip() if texture_active else ""
+            intensity_ok = intensity in cls.VALID_TEXTURE_INTENSITY
+            vals.update({
+                "texture_process_file": texture_file,
+                "texture_process_filename": (
+                    fs.get("textureFileName") or False
+                ) if texture_active else False,
+                "texture_intensity_mm": intensity if intensity_ok else False,
+            })
+            if texture_active and intensity_ok:
+                vals["finish_relief_mm"] = float(intensity)
+            elif texture_active and fs.get("reliefMm") is not None:
+                try:
+                    vals["finish_relief_mm"] = float(fs.get("reliefMm"))
+                except (TypeError, ValueError):
+                    vals["finish_relief_mm"] = DEFAULT_RELIEF_MM
+
+        if enable_varnish:
+            cover_mode = fs.get("varnishCoverMode") or "all"
+            if cover_mode not in cls.VALID_VARNISH_COVER_MODE:
+                cover_mode = "all"
+            varnish_type = fs.get("varnishType") or "none"
+            vals.update({
+                "finish_varnish_type": varnish_type if varnish_type in ("none", "gloss", "satin") else "none",
+                "varnish_cover_mode": cover_mode,
+                "varnish_area_file": cls._strip_data_uri(fs.get("varnishAreaFile"))
+                if cover_mode == "by_file" else False,
+                "varnish_area_filename": fs.get("varnishAreaFileName") or False
+                if cover_mode == "by_file" else False,
+                "varnish_zones_description": fs.get("varnishZonesDescription") or False
+                if cover_mode == "zones" else False,
+            })
+
+        return vals
 
     @staticmethod
     def _finish_vals_from_canvas_val(canvas_val):
@@ -97,12 +158,26 @@ class ProductDesigner(http.Controller):
         if not canvas_val:
             return {}
         effect = canvas_val.get("tusFinishEffect") or "none"
+        varnish_type = canvas_val.get("tusVarnishType") or "none"
+        texture_active = bool(canvas_val.get("tusTextureActive"))
+        emboss_active = texture_active or effect in ProductDesigner.EMBOSS_FINISH_EFFECTS
+        intensity = str(canvas_val.get("tusTextureIntensityMm") or "").strip()
+        if emboss_active:
+            if intensity in ProductDesigner.VALID_TEXTURE_INTENSITY:
+                relief_mm = float(intensity)
+            elif canvas_val.get("tusReliefMm") is not None:
+                try:
+                    relief_mm = float(canvas_val.get("tusReliefMm"))
+                except (TypeError, ValueError):
+                    relief_mm = DEFAULT_RELIEF_MM
+            else:
+                relief_mm = DEFAULT_RELIEF_MM
+        else:
+            relief_mm = DEFAULT_RELIEF_MM
         vals = {
             "tus_finish_effect": effect,
-            "tus_relief_mm": float(
-                canvas_val.get("tusReliefMm") if canvas_val.get("tusReliefMm") is not None else 0.6
-            ),
-            "tus_varnish_type": canvas_val.get("tusVarnishType") or "none",
+            "tus_relief_mm": relief_mm,
+            "tus_varnish_type": varnish_type if varnish_type in ("none", "gloss", "satin") else "none",
         }
         if effect in ("foil", "foil_emboss"):
             vals["tus_foil_metal"] = canvas_val.get("tusFoilMetal") or DEFAULT_FOIL_METAL
@@ -113,6 +188,38 @@ class ProductDesigner(http.Controller):
     @staticmethod
     def _get_text_template_groups():
         return request.env["editor.text.template"].sudo().get_grouped_for_designer()
+
+    @staticmethod
+    def _get_texture_groups():
+        return request.env["editor.texture"].sudo().get_grouped_for_designer()
+
+    @staticmethod
+    def _normalize_video_embed_url(url):
+        """Convert common YouTube/Vimeo URLs to an embeddable iframe src."""
+        url = (url or "").strip()
+        if not url:
+            return ""
+        if "/embed/" in url or "player.vimeo.com" in url:
+            return url
+        if "youtu.be/" in url:
+            video_id = url.rsplit("/", 1)[-1].split("?")[0]
+            return f"https://www.youtube.com/embed/{video_id}" if video_id else url
+        if "youtube.com/watch" in url:
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(url).query)
+            video_id = (query.get("v") or [""])[0]
+            return f"https://www.youtube.com/embed/{video_id}" if video_id else url
+        if "vimeo.com/" in url and "player.vimeo.com" not in url:
+            video_id = url.rstrip("/").rsplit("/", 1)[-1].split("?")[0]
+            return f"https://player.vimeo.com/video/{video_id}" if video_id.isdigit() else url
+        return url
+
+    def _get_help_context_payload(self):
+        help_content = request.env["product.personalizer.help"].sudo().get_active_for_designer()
+        return {
+            "help_content": help_content,
+            "help_content_json": json.dumps(help_content, ensure_ascii=False),
+        }
 
     def _get_personalizer_config(self):
         """Read feature toggles and theme from the current website for the editor UI"""
@@ -126,8 +233,10 @@ class ProductDesigner(http.Controller):
             'enable_text_templates': website.personalizer_enable_text_templates,
             'enable_preview': website.personalizer_enable_preview,
             'enable_3d_preview': website.personalizer_enable_3d_preview,
+            'enable_texture': website.personalizer_enable_texture,
             'enable_download': website.personalizer_enable_download,
             'enable_share': website.personalizer_enable_share,
+            'enable_help': website.personalizer_enable_help,
             'enable_shape': website.personalizer_enable_shape,
             'enable_matrix': website.personalizer_enable_matrix,
             'matrix_product_ids': website.personalizer_matrix_product_ids.ids,
@@ -152,6 +261,31 @@ class ProductDesigner(http.Controller):
             and product_tmpl.exists()
             and product_tmpl.personalizer_enable_3d_preview
         )
+        return personalizer_config
+
+    def _apply_show_texture(self, personalizer_config, product_tmpl_id):
+        """Merge global + per-product texture flags into runtime config for the designer."""
+        product_tmpl = request.env['product.template'].sudo().browse(int(product_tmpl_id))
+        personalizer_config['show_texture'] = bool(
+            personalizer_config.get('enable_texture')
+            and product_tmpl.exists()
+            and product_tmpl.personalizer_enable_texture
+        )
+        return personalizer_config
+
+    def _apply_show_finish_effects(self, personalizer_config, product_tmpl_id):
+        """Merge per-product texture/varnish finish flags into runtime config.
+
+        These drive the designer Print Finish panel (customer file uploads +
+        emboss intensity + varnish coverage). They are independent of the admin
+        Texture Library (canvas background) feature.
+        """
+        product_tmpl = request.env['product.template'].sudo().browse(int(product_tmpl_id))
+        show_texture = bool(product_tmpl.exists() and product_tmpl.personalizer_enable_finish_texture)
+        show_varnish = bool(product_tmpl.exists() and product_tmpl.personalizer_enable_finish_varnish)
+        personalizer_config['show_finish_texture'] = show_texture
+        personalizer_config['show_finish_varnish'] = show_varnish
+        personalizer_config['show_finish_tool'] = show_texture or show_varnish
         return personalizer_config
 
     EMPTY_CANVAS_STAGE_MAX = 394
@@ -317,6 +451,61 @@ class ProductDesigner(http.Controller):
                     seen_areas.add(area_key)
         return design_price_sum
 
+    def _show_texture_for_template(self, product_tmpl_id, personalizer_config=None):
+        if personalizer_config is None:
+            personalizer_config = self._get_personalizer_config()
+        product_tmpl = request.env['product.template'].sudo().browse(int(product_tmpl_id))
+        return bool(
+            personalizer_config.get('enable_texture')
+            and product_tmpl.exists()
+            and product_tmpl.personalizer_enable_texture
+        )
+
+    def _texture_dimensions_for_side(self, side, product_tmpl, empty_canvas_meta=None):
+        meta = empty_canvas_meta if isinstance(empty_canvas_meta, dict) else {}
+        if meta.get('width') and meta.get('height'):
+            margins = meta.get('margins_by_side') or {}
+            margin_mm = normalize_empty_canvas_margin_mm(margins.get(side))
+            return (
+                float(meta['width']),
+                float(meta['height']),
+                meta.get('unit') or 'in',
+                margin_mm,
+            )
+        view = request.env['product.view'].sudo().search([
+            ('product_template_id', '=', product_tmpl.id),
+            ('title', '=', side),
+            ('product_id', '=', False),
+            ('attribute_value_id', '=', False),
+        ], limit=1)
+        if view and view.image_width and view.image_height:
+            return float(view.image_width), float(view.image_height), 'in', 0.0
+        return 0.0, 0.0, 'in', 0.0
+
+    def _compute_texture_price_sum(
+        self, texture_by_side, product_tmpl, empty_canvas_meta=None, personalizer_config=None,
+    ):
+        if not texture_by_side or not self._show_texture_for_template(
+            product_tmpl.id, personalizer_config=personalizer_config,
+        ):
+            return 0.0
+        Texture = request.env['editor.texture'].sudo()
+        total = 0.0
+        for side, payload in texture_by_side.items():
+            if not payload or not payload.get('texture_id'):
+                continue
+            texture = Texture.browse(int(payload['texture_id']))
+            if not texture.exists() or not texture.active:
+                continue
+            width, height, unit, margin_mm = self._texture_dimensions_for_side(
+                side, product_tmpl, empty_canvas_meta=empty_canvas_meta,
+            )
+            if width <= 0 or height <= 0:
+                continue
+            price, _area = texture.compute_price_for_area(width, height, unit, margin_mm)
+            total += price
+        return total
+
     def _compute_printing_unit_cost(self, printing_method, total_order_qty):
         if not printing_method or not printing_method.exists() or total_order_qty <= 0:
             return 0.0
@@ -395,10 +584,18 @@ class ProductDesigner(http.Controller):
             return format_cmyk_display(c, m, y, k)
         return False
 
-    def _create_line_designs(self, line, design_data, palette_by_code=None, uom_by_name=None, cmyk_by_code=None):
+    def _create_line_designs(
+        self, line, design_data, palette_by_code=None, uom_by_name=None, cmyk_by_code=None,
+        texture_by_side=None,
+    ):
         """Create orderline design uploads and imprint rows for one sale line."""
         if palette_by_code is None or uom_by_name is None or cmyk_by_code is None:
             palette_by_code, uom_by_name, cmyk_by_code = self._get_imprint_lookup_maps()
+        texture_by_side = texture_by_side or {}
+        product_tmpl = line.product_id.product_tmpl_id
+        enable_finish_texture = bool(product_tmpl.personalizer_enable_finish_texture)
+        enable_finish_varnish = bool(product_tmpl.personalizer_enable_finish_varnish)
+        Texture = request.env['editor.texture'].sudo()
         ImprintDesign = request.env['orderline.imprint.design'].sudo()
         for obj in design_data:
             canvas_vals_list = obj.get('canvas_vals') or []
@@ -410,11 +607,24 @@ class ProductDesigner(http.Controller):
                 print_h = canvas_vals_list[0].get('height') or print_h
                 print_unit = canvas_vals_list[0].get('unit') or print_unit
 
+            side = obj.get('side', False)
+            side_texture = texture_by_side.get(side) or {}
+            texture_vals = {}
+            if side_texture.get('texture_id'):
+                texture = Texture.browse(int(side_texture['texture_id']))
+                if texture.exists():
+                    texture_vals = {
+                        'texture_id': texture.id,
+                        'texture_name': texture.name,
+                        'texture_area_m2': float(side_texture.get('area_m2') or 0.0),
+                        'texture_price': float(side_texture.get('price') or 0.0),
+                    }
+
             design_rec = request.env['orderline.design.upload'].sudo().create({
                 'order_line': line.id,
                 'order_id': line.order_id.id,
                 'name': f"{obj.get('side', '')}_{line.name}",
-                'uploaded_type': obj.get('side', False),
+                'uploaded_type': side,
                 'uploaded_attachment': self._prepare_design_attachment(obj.get('data'))
                 if obj.get('data') else False,
                 'print_width': print_w,
@@ -424,7 +634,12 @@ class ProductDesigner(http.Controller):
                 'empty_canvas_margin_mm': normalize_empty_canvas_margin_mm(
                     obj.get('empty_canvas_margin_mm')
                 ),
-                **self._finish_vals_from_side(obj),
+                **self._finish_vals_from_side(
+                    obj,
+                    enable_texture=enable_finish_texture,
+                    enable_varnish=enable_finish_varnish,
+                ),
+                **texture_vals,
             })
 
             unit = print_unit
@@ -615,6 +830,9 @@ class ProductDesigner(http.Controller):
         )
 
         personalizer_config = self._apply_show_3d_preview(personalizer_config, product_tmpl_id)
+        personalizer_config = self._apply_show_texture(personalizer_config, product_tmpl_id)
+        personalizer_config = self._apply_show_finish_effects(personalizer_config, product_tmpl_id)
+        show_texture = personalizer_config.get('show_texture')
 
         product_template_ids = request.env["product.design.template"].sudo().search([
             ("product_tmpl_id", "=", product_tmpl_id),
@@ -623,6 +841,7 @@ class ProductDesigner(http.Controller):
         default_product_template = product_template_ids.filtered("is_default")[:1]
 
         text_template_groups = self._get_text_template_groups()
+        texture_groups = self._get_texture_groups() if show_texture else []
 
         context = {
             "share_is_owner": False,
@@ -642,6 +861,10 @@ class ProductDesigner(http.Controller):
             "text_template_ids": [
                 tpl for group in text_template_groups for tpl in group.templates
             ],
+            "texture_groups": texture_groups,
+            "texture_ids": [
+                tex for group in texture_groups for tex in group.textures
+            ],
             "design_ids": request.env["res.partner.design"].sudo().search([
                 ("partner_id", "=", request.env.user.partner_id.id),
                 ("product_id.product_tmpl_id", "=", product_tmpl_id)
@@ -651,6 +874,7 @@ class ProductDesigner(http.Controller):
             "show_matrix_table": show_matrix_table,
             "show_vdp": show_vdp,
             "show_design_price": show_design_price,
+            "show_texture": show_texture,
             "show_printing_methods": show_printing_methods,
             "current_color_id": current_color_id,
             "empty_canvas_mode": empty_canvas_mode,
@@ -674,6 +898,7 @@ class ProductDesigner(http.Controller):
             "custom_width": empty_canvas_dims.get('width'),
             "custom_height": empty_canvas_dims.get('height'),
         }
+        context.update(self._get_help_context_payload())
         context.update(extra)
         return context
 
@@ -1474,6 +1699,29 @@ class ProductDesigner(http.Controller):
         )
 
     @http.route(
+        ["/product/designer/texture/<int:texture_id>/image"],
+        type="http",
+        auth="public",
+        website=True,
+        csrf=False,
+    )
+    def editor_texture_image(self, texture_id, **kw):
+        texture = request.env["editor.texture"].sudo().browse(texture_id)
+        if not texture.exists() or not texture.active or not texture.texture_file:
+            return request.not_found()
+        filename = (texture.texture_file_filename or "texture.png").lower()
+        if filename.endswith(".jpg") or filename.endswith(".jpeg"):
+            content_type = "image/jpeg"
+        elif filename.endswith(".webp"):
+            content_type = "image/webp"
+        else:
+            content_type = "image/png"
+        return request.make_response(
+            base64.b64decode(texture.texture_file),
+            headers=[("Content-Type", content_type), ("Cache-Control", "public, max-age=3600")],
+        )
+
+    @http.route(
         ["/backend/designer/<int:product_id>/<int:product_tmpl_id>/<int:sale_order_line_id>"],
         type="http",
         auth="user",  # since it’s backend usage
@@ -1507,8 +1755,12 @@ class ProductDesigner(http.Controller):
         )
 
         personalizer_config = self._apply_show_3d_preview(personalizer_config, product_tmpl_id)
+        personalizer_config = self._apply_show_texture(personalizer_config, product_tmpl_id)
+        personalizer_config = self._apply_show_finish_effects(personalizer_config, product_tmpl_id)
+        show_texture = personalizer_config.get('show_texture')
 
         text_template_groups = self._get_text_template_groups()
+        texture_groups = self._get_texture_groups() if show_texture else []
 
         return request.render(
             "tus_product_personalizer.product_design_customize",
@@ -1529,12 +1781,40 @@ class ProductDesigner(http.Controller):
                 "base_url": web_base_url,
                 "show_matrix_table": show_matrix_table,
                 "show_design_price": show_design_price,
+                "show_texture": show_texture,
                 "text_template_groups": text_template_groups,
                 "text_template_ids": [
                     tpl for group in text_template_groups for tpl in group.templates
                 ],
+                "texture_groups": texture_groups,
+                "texture_ids": [
+                    tex for group in texture_groups for tex in group.textures
+                ],
                 "personalizer_config": personalizer_config,
                 "personalizer_config_json": json.dumps(personalizer_config),
+                **self._get_help_context_payload(),
+            },
+        )
+
+    @http.route(
+        ["/personalizer/help/<string:token>"],
+        type="http",
+        auth="public",
+        website=True,
+        csrf=False,
+    )
+    def personalizer_help_page(self, token, **kw):
+        """Public shareable page for a designer help record."""
+        record = request.env["product.personalizer.help"].sudo().search([
+            ("share_token", "=", token),
+        ], limit=1)
+        if not record:
+            return request.not_found()
+        return request.render(
+            "tus_product_personalizer.personalizer_help_page",
+            {
+                "help_record": record,
+                "help_video_embed_url": record.video_embed_url,
             },
         )
 
@@ -2066,6 +2346,17 @@ class ProductDesigner(http.Controller):
             client_design_price = float(it.get('design_price') or 0.0)
             if design_price_sum <= 0 and client_design_price > 0:
                 design_price_sum = client_design_price
+            empty_canvas_meta = it.get('empty_canvas') or {}
+            texture_by_side = it.get('texture_by_side') or {}
+            texture_price_sum = self._compute_texture_price_sum(
+                texture_by_side,
+                product.product_tmpl_id,
+                empty_canvas_meta=empty_canvas_meta,
+                personalizer_config=personalizer_config,
+            )
+            client_texture_price = float(it.get('texture_price') or 0.0)
+            if texture_price_sum <= 0 and client_texture_price > 0:
+                texture_price_sum = client_texture_price
             printing_method = PrintingMethod.browse(int(it['printing_method_id'])) \
                 if it.get('printing_method_id') else PrintingMethod
             if not printing_method.exists():
@@ -2082,7 +2373,7 @@ class ProductDesigner(http.Controller):
 
             client_price = float(it.get('price') or 0.0)
             if client_price:
-                expected = base_unit + design_price_sum + printing_unit
+                expected = base_unit + design_price_sum + texture_price_sum + printing_unit
                 if abs(client_price - expected) > 0.05:
                     _logger.info(
                         'Buy now price adjusted for %s: client=%.2f server=%.2f',
@@ -2110,6 +2401,8 @@ class ProductDesigner(http.Controller):
             )
             if canvas_vals:
                 line.write(canvas_vals)
+            if texture_by_side:
+                line.write({'texture_by_side_json': json.dumps(texture_by_side)})
 
             if design_price_sum > 0:
                 charge_product = self._get_charge_product(
@@ -2130,6 +2423,25 @@ class ProductDesigner(http.Controller):
                         design_price_sum, product.display_name,
                     )
 
+            if texture_price_sum > 0:
+                texture_charge_product = self._get_charge_product(
+                    'tus_product_personalizer.product_texture_charge',
+                    'Texture Charge',
+                )
+                if texture_charge_product:
+                    self._create_custom_sale_line({
+                        'order_id': order.id,
+                        'product_id': texture_charge_product.id,
+                        'product_uom_qty': qty,
+                        'price_unit': texture_price_sum,
+                        'name': f"Texture Charges - {product.name}",
+                    })
+                else:
+                    _logger.warning(
+                        'Texture charge product missing; texture surcharge %.2f not billed for %s',
+                        texture_price_sum, product.display_name,
+                    )
+
             if vdp_payload:
                 self._store_vdp_on_line(line, vdp_payload)
                 records = vdp_payload.get('records') or []
@@ -2147,6 +2459,7 @@ class ProductDesigner(http.Controller):
                     palette_by_code=palette_by_code,
                     uom_by_name=uom_by_name,
                     cmyk_by_code=cmyk_by_code,
+                    texture_by_side=texture_by_side,
                 )
 
         if order_printing_method_id and order_printing_method.exists():

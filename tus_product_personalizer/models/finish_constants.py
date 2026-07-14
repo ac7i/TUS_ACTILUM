@@ -28,4 +28,23 @@ FOIL_METAL_SELECTION = [
 DEFAULT_FINISH_EFFECT = "none"
 DEFAULT_VARNISH_TYPE = "none"
 DEFAULT_FOIL_METAL = "gold"
-DEFAULT_RELIEF_MM = 0.6
+# 0.0 means no emboss selected; only set a positive value when emboss is active.
+DEFAULT_RELIEF_MM = 0.0
+
+# Customer-facing texture (emboss) intensity presets. Labels use the European
+# decimal comma to match the client mockup; values are millimetres.
+TEXTURE_INTENSITY_SELECTION = [
+    ("0.3", "0,3 mm"),
+    ("0.5", "0,5 mm"),
+    ("0.7", "0,7 mm"),
+    ("0.9", "0,9 mm"),
+]
+DEFAULT_TEXTURE_INTENSITY = "0.5"
+
+# Varnish coverage area modes (client mockup: By image file / All / Zones).
+VARNISH_COVER_MODE_SELECTION = [
+    ("by_file", "By image file"),
+    ("all", "All"),
+    ("zones", "Zones"),
+]
+DEFAULT_VARNISH_COVER_MODE = "all"

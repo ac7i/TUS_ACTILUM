@@ -4,6 +4,16 @@
         justify-content: center;
     }
 
+    // Stack size / margin / color above the canvas (full-width stage).
+    .main_wrapper .tab-content > .editor_side.tab-pane.active {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        gap: 10px;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
     .main_wrapper .image_preview_box.tus-empty-canvas-stage {
         border: 1px solid #d1d5db;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -63,20 +73,34 @@
 
     .tus-empty-canvas-stage-footer {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: center;
         gap: 10px;
-        margin-top: 12px;
-        padding: 0 12px 4px;
+        order: -1;
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 8px 12px 4px;
         text-align: center;
     }
 
     .tus-empty-canvas-stage-footer .tus-empty-canvas-size-label {
+        flex: 0 0 100%;
         font-size: 13px;
         font-weight: 600;
         letter-spacing: 0.02em;
         color: #374151;
+    }
+
+    .main_wrapper .product-stage {
+        flex: 1 1 auto;
+        width: 100%;
+        max-width: 100%;
+        min-height: 0;
     }
 
     .tus-empty-canvas-stage-footer .tus-empty-canvas-bg-control {

@@ -29,7 +29,10 @@ export const FOIL_ROSE_GOLD = "rose_gold";
 export const FOIL_HOLOGRAPHIC = "holographic";
 export const DEFAULT_FOIL_METAL = FOIL_GOLD;
 
-export const DEFAULT_RELIEF_MM = 0.6;
+/** 0 means no emboss selected; only persist a positive depth when emboss is on. */
+export const DEFAULT_RELIEF_MM = 0;
+/** Reference depth for 3D emboss preview normalization (must stay > 0). */
+export const REFERENCE_RELIEF_MM = 0.6;
 export const MAX_RELIEF_MM = 5;
 export const DEFAULT_NORMAL_STRENGTH = 4.5;
 export const DEFAULT_DISPLACEMENT_BLUR = 0.35;
@@ -104,9 +107,14 @@ export function getEffectiveVarnishType(obj, globalVarnish) {
 export function serializeFinishFields(obj) {
     ensureObjectFinishDefaults(obj);
     const effect = obj.tusFinishEffect || FINISH_NONE;
+    let reliefMm = 0;
+    if (isEmbossFinish(effect)) {
+        const stored = Number(obj.tusReliefMm);
+        reliefMm = Number.isFinite(stored) && stored > 0 ? stored : REFERENCE_RELIEF_MM;
+    }
     const payload = {
         tusFinishEffect: effect,
-        tusReliefMm: obj.tusReliefMm ?? DEFAULT_RELIEF_MM,
+        tusReliefMm: reliefMm,
         tusVarnishType: obj.tusVarnishType || VARNISH_NONE,
     };
     if (isFoilFinish(effect)) {

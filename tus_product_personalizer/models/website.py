@@ -74,6 +74,11 @@ class Website(models.Model):
         default=False,
         help="Enable PBR 3D preview mode in the product designer (per-product opt-in required)",
     )
+    personalizer_enable_texture = fields.Boolean(
+        string="Texture Library",
+        default=False,
+        help="Enable the admin texture library in the product designer (per-product opt-in required)",
+    )
     personalizer_enable_download = fields.Boolean(
         string="Download",
         default=True,
@@ -83,6 +88,11 @@ class Website(models.Model):
         string="Share Design",
         default=True,
         help="Show share button in the editor header to create shareable design links"
+    )
+    personalizer_enable_help = fields.Boolean(
+        string="Designer Help",
+        default=True,
+        help="Show the help button at the bottom of the designer sidebar",
     )
     personalizer_enable_matrix = fields.Boolean(
         string="Enable Matrix Table",

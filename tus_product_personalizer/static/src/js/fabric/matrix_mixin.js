@@ -8,6 +8,7 @@ import {
     serializeFinishFields,
     serializeGlobalFinishSettings,
 } from "../3d/finish_effects";
+import { serializeFinishUploadFields } from "./finish_upload_mixin";
 import { resolveCmykForColor } from "./color_cmyk";
 
 export const fabricMatrixMixin = {
@@ -787,6 +788,7 @@ export const fabricMatrixMixin = {
         let productTotal = 0;
         let totalQty = 0;
         const designPricePerUnit = this._calculateDesignPrice();
+        const texturePricePerUnit = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
 
         const $inputs = $('.tus-matrix-input');
         $inputs.each(function () {
@@ -797,6 +799,7 @@ export const fabricMatrixMixin = {
         });
 
         const designTotal = totalQty * designPricePerUnit;
+        const textureTotal = totalQty * texturePricePerUnit;
 
         let printingTotal = 0;
         if (this.selectedPrintingMethod) {
@@ -805,7 +808,7 @@ export const fabricMatrixMixin = {
             printingTotal = setupCost + (unitCost * totalQty);
         }
 
-        const grandTotal = productTotal + designTotal + printingTotal;
+        const grandTotal = productTotal + designTotal + textureTotal + printingTotal;
 
         const $designInput = $('input[name="show_design_price"]');
         const showDesignPrice = $designInput.val() === '1';
@@ -946,11 +949,14 @@ export const fabricMatrixMixin = {
                 for (const item of itemsByColor[colorId]) {
                     const basePrice = parseFloat(item.price) || 0;
                     const designPricePerUnit = this._calculateDesignPrice();
-                    const finalPrice = basePrice + designPricePerUnit + printingUnitCost;
+                    const texturePricePerUnit = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
+                    const finalPrice = basePrice + designPricePerUnit + texturePricePerUnit + printingUnitCost;
                     const formattedItem = {
                         product_id: item.product_id,
                         base_price: basePrice,
                         design_price: designPricePerUnit,
+                        texture_price: texturePricePerUnit,
+                        texture_by_side: this._getTexturePayloadForCart?.() || {},
                         qty: item.qty,
                         price: finalPrice,
                         color_id: item.color_id,
@@ -1048,6 +1054,7 @@ export const fabricMatrixMixin = {
                 element_image: elemImage,
             },
             serializeFinishFields(obj),
+            serializeFinishUploadFields(obj),
             actual?.unit ? { unit: actual.unit } : {},
             obj.tusVdpKey ? { tus_vdp_key: obj.tusVdpKey } : {}
         );
@@ -1068,10 +1075,14 @@ export const fabricMatrixMixin = {
             let masterActual = null;
 
             for (const view of sideCanvases) {
-                const canvasObjects = view.canvas.getObjects().filter((element) => !element.center_line);
-                if (!canvasObjects?.length) continue;
+                const canvasObjects = view.canvas.getObjects().filter(
+                    (element) => !element.center_line && !element.tusTextureLayer
+                );
+                if (!canvasObjects?.length && !self._sideHasTexture?.(side)) continue;
 
-                sideHasObjects = true;
+                if (canvasObjects.length) {
+                    sideHasObjects = true;
+                }
                 const areaDef = self._findAreaDef(side, view.id);
                 const actual = self._computeAreaActualForSave(
                     areaDef,
@@ -1092,7 +1103,19 @@ export const fabricMatrixMixin = {
                 }
             }
 
-            if (!sideHasObjects || !masterActual) return;
+            if (!sideHasObjects && !self._sideHasTexture?.(side)) return;
+            if (!masterActual) {
+                const firstView = sideCanvases[0];
+                if (firstView?.canvas) {
+                    const areaDef = self._findAreaDef(side, firstView.id);
+                    masterActual = self._computeAreaActualForSave(
+                        areaDef,
+                        firstView.canvas.getWidth(),
+                        firstView.canvas.getHeight()
+                    );
+                }
+            }
+            if (!masterActual) return;
 
             const dataUrl = await self._exportSideDuringBatch(side, {
                 format: "png",
@@ -1108,7 +1131,12 @@ export const fabricMatrixMixin = {
             }
 
             const activeAreas = sideCanvases
-                .filter((view) => view.canvas.getObjects().filter((obj) => !obj.center_line).length > 0)
+                .filter((view) => {
+                    const objs = view.canvas.getObjects().filter(
+                        (obj) => !obj.center_line && !obj.tusTextureLayer
+                    );
+                    return objs.length > 0;
+                })
                 .map((view) => ({
                     id: view.id,
                     name: view.name,
@@ -1124,7 +1152,9 @@ export const fabricMatrixMixin = {
                 height: printH,
                 unit: printUnit,
                 active_areas: activeAreas,
-                finish_settings: serializeGlobalFinishSettings(self._3dPreviewSettings),
+                finish_settings: self._getFinishSettingsForSide
+                    ? self._getFinishSettingsForSide(side)
+                    : serializeGlobalFinishSettings(self._3dPreviewSettings),
                 empty_canvas: Boolean(self.emptyCanvasMode),
                 empty_canvas_margin_mm: self._getEmptyCanvasMarginMm
                     ? self._getEmptyCanvasMarginMm(side)

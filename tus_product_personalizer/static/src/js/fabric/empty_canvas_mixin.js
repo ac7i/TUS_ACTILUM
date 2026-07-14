@@ -321,6 +321,9 @@ export const fabricEmptyCanvasMixin = {
         this._syncEmptyCanvasMarginsHiddenInput();
         this._applyEmptyCanvasMarginsForSide(key);
         this._syncEmptyCanvasFooterForSide(key);
+        this._rescaleAllTextures?.();
+        this._syncTexturePanelUi?.(key);
+        this._updateDesignerPriceDisplay?.();
         return this.emptyCanvasMarginBySide[key];
     },
 
@@ -390,12 +393,15 @@ export const fabricEmptyCanvasMixin = {
         const color = this._getEmptyCanvasBackground(key);
         const pane = document.getElementById(`${key}_canvas`);
         const box = pane?.querySelector(".image_preview_box.tus-empty-canvas-stage");
-        if (box) {
+        if (box && !this._sideHasTexture?.(key)) {
             box.style.background = color;
         }
         for (const entry of this.canvasesBySide[key] || []) {
             const canvas = entry?.canvas;
             if (!canvas) {
+                continue;
+            }
+            if (this._sideHasTexture?.(key)) {
                 continue;
             }
             canvas.backgroundColor = color;
@@ -565,6 +571,11 @@ export const fabricEmptyCanvasMixin = {
         this._addDropListeners(wrapper, fabricCanvas, area.id, side);
         this._applyEmptyCanvasBackground(side);
         this._applyEmptyCanvasMarginsForCanvas(fabricCanvas, side);
+        const textureMeta = this.textureBySide?.[side];
+        if (textureMeta) {
+            fabricCanvas._tusSide = side;
+            this._applyTextureToCanvas(fabricCanvas, textureMeta);
+        }
         fabricCanvas.requestRenderAll();
     },
 
@@ -621,7 +632,7 @@ export const fabricEmptyCanvasMixin = {
                 const scaleX = newW / oldW;
                 const scaleY = newH / oldH;
                 canvas.getObjects().forEach((obj) => {
-                    if (obj.center_line) {
+                    if (obj.center_line || obj.tusTextureLayer) {
                         return;
                     }
                     obj.scaleX = (obj.scaleX || 1) * scaleX;
@@ -669,6 +680,7 @@ export const fabricEmptyCanvasMixin = {
             }
         } finally {
             this._restructuringCanvas = false;
+            this._rescaleAllTextures?.();
         }
     },
 
@@ -748,16 +760,14 @@ export const fabricEmptyCanvasMixin = {
         const stageH = layout.stageH || layout.canvasH || 394;
         const side = opts.side || this.active_side || "front";
         const canvasBg = this._getEmptyCanvasBackground(side);
-        const maxSize = opts.maxSize || Math.max(stageW, stageH, 1024);
 
-        let outW = stageW;
-        let outH = stageH;
-        const longest = Math.max(outW, outH);
-        if (longest > maxSize) {
-            const ratio = maxSize / longest;
-            outW = Math.max(1, Math.round(outW * ratio));
-            outH = Math.max(1, Math.round(outH * ratio));
-        }
+        // Render above the on-screen stage size so the 3D texture stays crisp
+        // instead of upscaling the low-resolution display canvas.
+        const targetLongest = opts.maxSize || 2048;
+        const stageLongest = Math.max(stageW, stageH, 1);
+        const scale = Math.max(1, targetLongest / stageLongest);
+        const outW = Math.max(1, Math.round(stageW * scale));
+        const outH = Math.max(1, Math.round(stageH * scale));
 
         const out = document.createElement("canvas");
         out.width = outW;
@@ -766,6 +776,8 @@ export const fabricEmptyCanvasMixin = {
         if (!ctx) {
             return null;
         }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.fillStyle = canvasBg;
         ctx.fillRect(0, 0, outW, outH);
 
@@ -779,7 +791,17 @@ export const fabricEmptyCanvasMixin = {
                 fab.discardActiveObject();
             }
             fab.renderAll();
-            const layer = fab.lowerCanvasEl;
+            let layer = null;
+            if (typeof fab.toCanvasElement === "function") {
+                try {
+                    layer = fab.toCanvasElement(scale);
+                } catch (err) {
+                    layer = null;
+                }
+            }
+            if (!layer) {
+                layer = fab.lowerCanvasEl;
+            }
             if (layer && layer.width >= 1 && layer.height >= 1) {
                 ctx.drawImage(layer, 0, 0, outW, outH);
             }
@@ -828,7 +850,8 @@ export const fabricEmptyCanvasMixin = {
         `;
         const stage = pane.querySelector(".product-stage");
         if (stage) {
-            stage.insertAdjacentElement("afterend", footer);
+            // Place chrome above canvas so mobile can stack full-width stage below.
+            stage.insertAdjacentElement("beforebegin", footer);
         } else {
             pane.appendChild(footer);
         }

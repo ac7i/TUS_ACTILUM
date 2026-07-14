@@ -28,6 +28,13 @@
               sequence="25"
     />
 
+    <menuitem id="editor_texture_menu"
+              name="Texture Library"
+              parent="editor_root_menu"
+              action="action_editor_texture"
+              sequence="24"
+    />
+
     <menuitem id="editor_canvas_preset_menu"
               name="Canvas Size Presets"
               parent="editor_root_menu"
@@ -40,6 +47,13 @@
               parent="editor_root_menu"
               action="action_editor_canvas_product_option"
               sequence="27"
+    />
+
+    <menuitem id="editor_personalizer_help_menu"
+              name="Designer Help"
+              parent="editor_root_menu"
+              action="tus_product_personalizer.action_product_personalizer_help"
+              sequence="28"
     />
 
 </odoo>

@@ -110,6 +110,18 @@ class OrderImprintDesign(models.Model):
         compute="_compute_imprint_summary",
     )
 
+    def _get_selection_label(self, field_name):
+        self.ensure_one()
+        field = self._fields[field_name]
+        value = self[field_name]
+        if not value:
+            return ""
+        if callable(field.selection):
+            selection = dict(field.selection(self))
+        else:
+            selection = dict(field.selection or [])
+        return selection.get(value, value)
+
     @api.depends(
         "imprint_design_attribute",
         "imprint_width",

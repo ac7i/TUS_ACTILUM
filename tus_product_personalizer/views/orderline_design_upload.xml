@@ -58,8 +58,25 @@
                                 </div>
                                 <field name="canvas_background_color" widget="color" readonly="1"/>
                                 <field name="empty_canvas_margin_mm" readonly="1"/>
+                                <field name="texture_id" readonly="1"/>
+                                <field name="texture_name" readonly="1"/>
+                                <field name="texture_area_m2" readonly="1"/>
+                                <field name="texture_price" readonly="1"/>
+                            </group>
+                            <group string="Print Finish">
+                                <field name="texture_intensity_mm" readonly="1"/>
+                                <field name="texture_process_filename" invisible="1"/>
+                                <field name="texture_process_file" filename="texture_process_filename"
+                                       readonly="1" invisible="not texture_process_file"/>
                                 <field name="finish_varnish_type" readonly="1"/>
-                                <field name="finish_relief_mm" readonly="1"/>
+                                <field name="varnish_cover_mode" readonly="1"
+                                       invisible="finish_varnish_type == 'none'"/>
+                                <field name="varnish_area_filename" invisible="1"/>
+                                <field name="varnish_area_file" filename="varnish_area_filename"
+                                       readonly="1" invisible="not varnish_area_file"/>
+                                <field name="varnish_zones_description" readonly="1"
+                                       invisible="varnish_cover_mode != 'zones'"/>
+                                <field name="finish_relief_mm" readonly="1" groups="base.group_no_one"/>
                             </group>
                         </group>
                         <group string="Design Preview">

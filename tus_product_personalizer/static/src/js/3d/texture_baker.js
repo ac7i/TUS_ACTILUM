@@ -5,6 +5,7 @@ import {
     DEFAULT_FOIL_METAL,
     DEFAULT_NORMAL_STRENGTH,
     DEFAULT_RELIEF_MM,
+    REFERENCE_RELIEF_MM,
     FINISH_DEBOSS,
     FINISH_EMBOSS,
     FINISH_GLOSS,
@@ -13,15 +14,14 @@ import {
     VARNISH_GLOSS,
     VARNISH_NONE,
     VARNISH_SATIN,
-    applyCanvasFinishPreviewToCanvas,
     ensureObjectFinishDefaults,
-    getEffectiveVarnishType,
     getFoilMetalPreset,
     isEmbossFinish,
     isFoilFinish,
     isVarnishFinish,
     restoreFinishPreviewColorsOnCanvas,
 } from "./finish_effects";
+import { ensureObjectFinishUploadDefaults } from "../fabric/finish_upload_mixin";
 
 function loadImage(src) {
     return new Promise((resolve, reject) => {
@@ -33,13 +33,148 @@ function loadImage(src) {
     });
 }
 
+/** Draw a customer-uploaded image (data URL) scaled into a canvas region. */
+async function drawDataUrlInRect(ctx, dataUrl, left, top, width, height) {
+    if (!dataUrl || !ctx) {
+        return;
+    }
+    try {
+        const img = await loadImage(dataUrl);
+        ctx.drawImage(img, left, top, width, height);
+    } catch (err) {
+        console.warn("Could not load finish upload image for 3D bake:", err);
+    }
+}
+
+/** Draw a customer-uploaded image at the object's bounding box on a bake map. */
+async function drawObjectTextureFile(ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, dataUrl) {
+    if (!dataUrl || !ctx || !fabricCanvas || !obj) {
+        return;
+    }
+    const canvasW = fabricCanvas.getWidth();
+    const canvasH = fabricCanvas.getHeight();
+    const rect = obj.getBoundingRect(true, true);
+    if (!rect || rect.width < 1 || rect.height < 1) {
+        return;
+    }
+    const relCropLeft = rect.left / canvasW;
+    const relCropTop = rect.top / canvasH;
+    const relCropW = rect.width / canvasW;
+    const relCropH = rect.height / canvasH;
+    const x = destLeft + relCropLeft * destW;
+    const y = destTop + relCropTop * destH;
+    const w = Math.max(1, relCropW * destW);
+    const h = Math.max(1, relCropH * destH);
+    try {
+        const img = await loadImage(dataUrl);
+        ctx.save();
+        ctx.globalCompositeOperation = "lighten";
+        ctx.drawImage(img, x, y, w, h);
+        ctx.restore();
+    } catch (err) {
+        console.warn("Could not draw texture file on bake map:", err);
+    }
+}
+
+/**
+ * Spot varnish: layer silhouette ∩ uploaded mask luminance.
+ * White/light = varnish on; dark = no varnish. Never draws printable ink.
+ */
+async function drawObjectVarnishSpotMask(
+    ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, dataUrl
+) {
+    if (!dataUrl || !ctx || !fabricCanvas || !obj) {
+        return;
+    }
+    const off = document.createElement("canvas");
+    off.width = ctx.canvas.width;
+    off.height = ctx.canvas.height;
+    const offCtx = off.getContext("2d");
+    if (!offCtx) {
+        return;
+    }
+    await drawObjectMask(
+        offCtx,
+        fabricCanvas,
+        obj,
+        destLeft,
+        destTop,
+        destW,
+        destH,
+        "varnish",
+        REFERENCE_RELIEF_MM
+    );
+
+    const canvasW = fabricCanvas.getWidth();
+    const canvasH = fabricCanvas.getHeight();
+    const rect = obj.getBoundingRect(true, true);
+    if (!rect || rect.width < 1 || rect.height < 1) {
+        return;
+    }
+    const relCropLeft = rect.left / canvasW;
+    const relCropTop = rect.top / canvasH;
+    const relCropW = rect.width / canvasW;
+    const relCropH = rect.height / canvasH;
+    const x = destLeft + relCropLeft * destW;
+    const y = destTop + relCropTop * destH;
+    const w = Math.max(1, Math.round(relCropW * destW));
+    const h = Math.max(1, Math.round(relCropH * destH));
+
+    try {
+        const img = await loadImage(dataUrl);
+        const maskCan = document.createElement("canvas");
+        maskCan.width = w;
+        maskCan.height = h;
+        const mctx = maskCan.getContext("2d");
+        if (!mctx) {
+            return;
+        }
+        mctx.drawImage(img, 0, 0, w, h);
+        const id = mctx.getImageData(0, 0, w, h);
+        const data = id.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+            const srcA = data[i + 3] / 255;
+            const a = Math.round(Math.min(1, lum * srcA) * 255);
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+            data[i + 3] = a;
+        }
+        mctx.putImageData(id, 0, 0);
+
+        offCtx.save();
+        offCtx.globalCompositeOperation = "destination-in";
+        offCtx.drawImage(maskCan, x, y, w, h);
+        offCtx.restore();
+
+        ctx.save();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(off, 0, 0);
+        ctx.restore();
+    } catch (err) {
+        console.warn("Could not apply varnish spot mask:", err);
+        // Fallback: varnish the whole layer silhouette.
+        await drawObjectMask(
+            ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, "varnish", REFERENCE_RELIEF_MM
+        );
+    }
+}
+
 /**
  * Ink masks must snapshot only object pixels. Empty canvas sets an opaque
  * fabric backgroundColor, which would otherwise fill the crop with alpha.
  */
 function snapshotFabricCrop(fabricCanvas, crop) {
-    const bgBackup = fabricCanvas.backgroundColor;
+    // Ink masks must contain object pixels only. Besides the opaque empty-canvas
+    // backgroundColor, the canvas may carry a background texture image (e.g. wood)
+    // which would otherwise fill the crop and emboss as a solid block.
+    const bgColorBackup = fabricCanvas.backgroundColor;
+    const bgImageBackup = fabricCanvas.backgroundImage;
+    const overlayImageBackup = fabricCanvas.overlayImage;
     fabricCanvas.backgroundColor = null;
+    fabricCanvas.backgroundImage = null;
+    fabricCanvas.overlayImage = null;
     fabricCanvas.renderAll();
     try {
         return fabricCanvas.toDataURL({
@@ -54,7 +189,9 @@ function snapshotFabricCrop(fabricCanvas, crop) {
     } catch (_e) {
         return null;
     } finally {
-        fabricCanvas.backgroundColor = bgBackup;
+        fabricCanvas.backgroundColor = bgColorBackup;
+        fabricCanvas.backgroundImage = bgImageBackup;
+        fabricCanvas.overlayImage = overlayImageBackup;
         fabricCanvas.renderAll();
     }
 }
@@ -196,40 +333,6 @@ function applyAlphaMaskToMap(mapCanvas, alphaCanvas) {
     return mapCanvas;
 }
 
-function buildRoughnessFromAlpha(alphaCanvas, globalVarnish, width, height) {
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#d9d9d9";
-    ctx.fillRect(0, 0, width, height);
-
-    let glossValue = 180;
-    if (globalVarnish === VARNISH_GLOSS) {
-        glossValue = 55;
-    } else if (globalVarnish === VARNISH_SATIN) {
-        glossValue = 110;
-    }
-
-    const alphaData = alphaCanvas.getContext("2d").getImageData(0, 0, width, height);
-    const data = ctx.getImageData(0, 0, width, height);
-    const base = 217;
-
-    for (let i = 0; i < alphaData.data.length; i += 4) {
-        const mask = alphaData.data[i + 3] / 255;
-        if (mask <= 0.01) {
-            continue;
-        }
-        const v = Math.round(base + (glossValue - base) * mask);
-        data.data[i] = v;
-        data.data[i + 1] = v;
-        data.data[i + 2] = v;
-        data.data[i + 3] = 255;
-    }
-    ctx.putImageData(data, 0, 0);
-    return canvas;
-}
-
 function foilColorAt(preset, x, y) {
     if (!preset.iridescent) {
         return { r: preset.r, g: preset.g, b: preset.b };
@@ -358,20 +461,21 @@ async function buildObjectFoilMask(fab, obj, dest, bakeWidth, bakeHeight, global
     return maskCanvas;
 }
 
-function buildRoughnessMap(varnishCanvas, globalVarnish, width, height, alphaCanvas = null) {
+function buildRoughnessMap(varnishCanvas, varnishType, width, height, alphaCanvas = null) {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
+    // Matte substrate everywhere; only masked varnish regions become shiny.
     ctx.fillStyle = "#d9d9d9";
     ctx.fillRect(0, 0, width, height);
 
-    if (!varnishCanvas || globalVarnish === VARNISH_NONE) {
+    if (!varnishCanvas || varnishType === VARNISH_NONE) {
         return canvas;
     }
 
-    if (!canvasHasBrightContent(varnishCanvas) && alphaCanvas) {
-        return buildRoughnessFromAlpha(alphaCanvas, globalVarnish, width, height);
+    if (!canvasHasBrightContent(varnishCanvas)) {
+        return canvas;
     }
 
     const temp = document.createElement("canvas");
@@ -382,9 +486,9 @@ function buildRoughnessMap(varnishCanvas, globalVarnish, width, height, alphaCan
     const data = tctx.getImageData(0, 0, width, height);
 
     let glossValue = 180;
-    if (globalVarnish === VARNISH_GLOSS) {
+    if (varnishType === VARNISH_GLOSS) {
         glossValue = 55;
-    } else if (globalVarnish === VARNISH_SATIN) {
+    } else if (varnishType === VARNISH_SATIN) {
         glossValue = 110;
     }
 
@@ -401,7 +505,130 @@ function buildRoughnessMap(varnishCanvas, globalVarnish, width, height, alphaCan
         data.data[i + 3] = 255;
     }
     ctx.putImageData(data, 0, 0);
+    if (alphaCanvas) {
+        applyAlphaMaskToMap(canvas, alphaCanvas);
+    }
     return canvas;
+}
+
+/** White = clearcoat strength from varnish mask. */
+function buildClearcoatCanvas(varnishCanvas, width, height) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, width, height);
+    if (!varnishCanvas || !canvasHasBrightContent(varnishCanvas)) {
+        return canvas;
+    }
+    const src = varnishCanvas.getContext("2d").getImageData(0, 0, width, height);
+    const dst = ctx.getImageData(0, 0, width, height);
+    for (let i = 0; i < src.data.length; i += 4) {
+        const v = Math.max(src.data[i], src.data[i + 1], src.data[i + 2]);
+        dst.data[i] = v;
+        dst.data[i + 1] = v;
+        dst.data[i + 2] = v;
+        dst.data[i + 3] = 255;
+    }
+    ctx.putImageData(dst, 0, 0);
+    return canvas;
+}
+
+function resolveObjectVarnishType(obj) {
+    ensureObjectFinishDefaults(obj);
+    ensureObjectFinishUploadDefaults(obj);
+    const printVarnish = obj.tusVarnishType;
+    if (printVarnish && printVarnish !== VARNISH_NONE) {
+        return printVarnish;
+    }
+    const effect = obj.tusFinishEffect;
+    if (effect === FINISH_GLOSS) {
+        return VARNISH_GLOSS;
+    }
+    if (effect === FINISH_SATIN || effect === FINISH_VARNISH_MATTE) {
+        return VARNISH_SATIN;
+    }
+    if (isVarnishFinish(effect)) {
+        return VARNISH_GLOSS;
+    }
+    return VARNISH_NONE;
+}
+
+function preferVarnishType(current, next) {
+    if (!next || next === VARNISH_NONE) {
+        return current;
+    }
+    if (!current || current === VARNISH_NONE) {
+        return next;
+    }
+    if (current === VARNISH_GLOSS || next === VARNISH_GLOSS) {
+        return VARNISH_GLOSS;
+    }
+    return next;
+}
+
+/** OR white varnish wherever the product alpha is opaque. */
+function floodVarnishFromAlpha(varCtx, alphaCanvas) {
+    if (!varCtx || !alphaCanvas) {
+        return;
+    }
+    const w = alphaCanvas.width;
+    const h = alphaCanvas.height;
+    const src = alphaCanvas.getContext("2d").getImageData(0, 0, w, h);
+    const dst = varCtx.getImageData(0, 0, w, h);
+    for (let i = 0; i < src.data.length; i += 4) {
+        if (src.data[i + 3] < 16) {
+            continue;
+        }
+        dst.data[i] = 255;
+        dst.data[i + 1] = 255;
+        dst.data[i + 2] = 255;
+        dst.data[i + 3] = 255;
+    }
+    varCtx.putImageData(dst, 0, 0);
+}
+
+/**
+ * Estimate the dominant background color of a rasterised layer by averaging the
+ * opaque pixels around the outer border of the crop. Returns null when the
+ * border is mostly transparent (e.g. a clipart/vector shape) so callers keep
+ * embossing by silhouette instead.
+ */
+function estimateBorderBackgroundColor(imgData) {
+    const { width: w, height: h, data } = imgData;
+    if (w < 3 || h < 3) {
+        return null;
+    }
+    let rSum = 0;
+    let gSum = 0;
+    let bSum = 0;
+    let opaque = 0;
+    let sampled = 0;
+    const sample = (x, y) => {
+        const idx = (y * w + x) * 4;
+        sampled += 1;
+        if (data[idx + 3] < 128) {
+            return;
+        }
+        opaque += 1;
+        rSum += data[idx];
+        gSum += data[idx + 1];
+        bSum += data[idx + 2];
+    };
+    for (let x = 0; x < w; x++) {
+        sample(x, 0);
+        sample(x, h - 1);
+    }
+    for (let y = 1; y < h - 1; y++) {
+        sample(0, y);
+        sample(w - 1, y);
+    }
+    // Border must be mostly opaque to be treated as a solid photo background.
+    if (!sampled || opaque / sampled < 0.6) {
+        return null;
+    }
+    return { r: rSum / opaque, g: gSum / opaque, b: bSum / opaque };
 }
 
 function buildInkMaskImageData(imgData, obj, mode, reliefFactor = 1) {
@@ -410,6 +637,11 @@ function buildInkMaskImageData(imgData, obj, mode, reliefFactor = 1) {
     scratch.height = imgData.height;
     const out = scratch.getContext("2d").createImageData(imgData.width, imgData.height);
     const isImageLike = obj.type === "image" || obj.type === "group";
+    // For opaque photos, treat a near-uniform border color as the background so
+    // only the meaningful subject is raised (no rectangular relief block).
+    const bgColor =
+        isImageLike && mode !== "foil" ? estimateBorderBackgroundColor(imgData) : null;
+    const BG_DISTANCE = 46;
 
     for (let i = 0; i < imgData.data.length; i += 4) {
         const r = imgData.data[i];
@@ -429,6 +661,14 @@ function buildInkMaskImageData(imgData, obj, mode, reliefFactor = 1) {
             const sat = (maxC - minC) / 255;
             if (lum > 0.92 && sat < 0.1) {
                 continue;
+            }
+            if (bgColor) {
+                const dr = r - bgColor.r;
+                const dg = g - bgColor.g;
+                const db = b - bgColor.b;
+                if (Math.sqrt(dr * dr + dg * dg + db * db) < BG_DISTANCE) {
+                    continue;
+                }
             }
             shape = alpha;
         } else if (
@@ -544,8 +784,8 @@ async function drawObjectMask(ctx, fabricCanvas, obj, destLeft, destTop, destW, 
 
     const reliefFactor = Math.min(
         5,
-        Math.max(0.5, (obj.tusReliefMm ?? DEFAULT_RELIEF_MM) / DEFAULT_RELIEF_MM)
-            * Math.min(2.5, (globalReliefMm ?? DEFAULT_RELIEF_MM) / DEFAULT_RELIEF_MM)
+        Math.max(0.5, (obj.tusReliefMm || REFERENCE_RELIEF_MM) / REFERENCE_RELIEF_MM)
+            * Math.min(2.5, (globalReliefMm || REFERENCE_RELIEF_MM) / REFERENCE_RELIEF_MM)
     );
 
     const canvasW = fabricCanvas.getWidth();
@@ -671,6 +911,8 @@ function computeEntryDest(entry, img, imgRect, naturalWidth, naturalHeight, cach
 }
 
 export async function bakeMapsForSide(editor, side, options = {}) {
+    // Legacy option: only used if something still passes a true global coat.
+    // Layer varnish is never promoted via globalVarnish from the 3D refresh path.
     const globalVarnish = options.globalVarnish || VARNISH_NONE;
     const globalReliefMm = options.reliefMm ?? DEFAULT_RELIEF_MM;
     const displacementBlur = options.displacementBlur ?? DEFAULT_DISPLACEMENT_BLUR;
@@ -749,6 +991,8 @@ export async function bakeMapsForSide(editor, side, options = {}) {
     varCtx.fillRect(0, 0, bakeWidth, bakeHeight);
 
     const foilMaskEntries = [];
+    let primaryVarnishType = VARNISH_NONE;
+    let maxReliefMm = 0;
 
     for (const entry of entries) {
         const fab = entry.canvas;
@@ -764,8 +1008,32 @@ export async function bakeMapsForSide(editor, side, options = {}) {
         const objects = fab.getObjects().filter((obj) => !obj.center_line && !obj.extra_elem);
         for (const obj of objects) {
             ensureObjectFinishDefaults(obj);
+            ensureObjectFinishUploadDefaults(obj);
+
+            if (obj.tusTextureActive) {
+                const textureRelief =
+                    parseFloat(obj.tusTextureIntensityMm) > 0
+                        ? parseFloat(obj.tusTextureIntensityMm)
+                        : REFERENCE_RELIEF_MM;
+                maxReliefMm = Math.max(maxReliefMm, textureRelief);
+                await drawObjectMask(
+                    dispCtx,
+                    fab,
+                    obj,
+                    dest.left,
+                    dest.top,
+                    dest.width,
+                    dest.height,
+                    "emboss",
+                    textureRelief
+                );
+            }
+
             const effect = obj.tusFinishEffect;
             if (isEmbossFinish(effect)) {
+                const embossRelief =
+                    Number(obj.tusReliefMm) > 0 ? Number(obj.tusReliefMm) : REFERENCE_RELIEF_MM;
+                maxReliefMm = Math.max(maxReliefMm, embossRelief);
                 await drawObjectMask(
                     dispCtx,
                     fab,
@@ -775,7 +1043,7 @@ export async function bakeMapsForSide(editor, side, options = {}) {
                     dest.width,
                     dest.height,
                     effect === FINISH_DEBOSS ? "deboss" : "emboss",
-                    globalReliefMm
+                    embossRelief
                 );
             }
             if (isFoilFinish(effect)) {
@@ -785,26 +1053,38 @@ export async function bakeMapsForSide(editor, side, options = {}) {
                     dest,
                     bakeWidth,
                     bakeHeight,
-                    globalReliefMm
+                    maxReliefMm || REFERENCE_RELIEF_MM
                 );
                 foilMaskEntries.push({
                     maskCanvas,
                     metal: obj.tusFoilMetal || DEFAULT_FOIL_METAL,
                 });
             }
-            const varnishType = getEffectiveVarnishType(obj, globalVarnish);
-            if (isVarnishFinish(effect) || varnishType !== VARNISH_NONE) {
-                await drawObjectMask(
-                    varCtx,
-                    fab,
-                    obj,
-                    dest.left,
-                    dest.top,
-                    dest.width,
-                    dest.height,
-                    "varnish",
-                    globalReliefMm
-                );
+
+            // Only coat objects that explicitly have print varnish / gloss|satin finish.
+            // Do NOT apply options.globalVarnish to every object (that flooded the sheet).
+            const varnishType = resolveObjectVarnishType(obj);
+            primaryVarnishType = preferVarnishType(primaryVarnishType, varnishType);
+            if (varnishType !== VARNISH_NONE) {
+                const cover = obj.tusVarnishCoverMode || "all";
+                if (cover === "by_file" && obj.tusVarnishAreaFile) {
+                    await drawObjectVarnishSpotMask(
+                        varCtx, fab, obj, dest.left, dest.top, dest.width, dest.height, obj.tusVarnishAreaFile
+                    );
+                } else {
+                    // "all" and "zones" (production note): varnish the layer silhouette.
+                    await drawObjectMask(
+                        varCtx,
+                        fab,
+                        obj,
+                        dest.left,
+                        dest.top,
+                        dest.width,
+                        dest.height,
+                        "varnish",
+                        REFERENCE_RELIEF_MM
+                    );
+                }
             }
         }
     }
@@ -814,6 +1094,20 @@ export async function bakeMapsForSide(editor, side, options = {}) {
 
     const alphaCanvas = buildAlphaMaskFromColorCanvas(colorCanvas);
     applyAlphaMaskToMap(blurredDisp, alphaCanvas);
+
+    // Legacy full-sheet coat only when an explicit globalVarnish is passed.
+    // Empty-canvas sheets are the printable area themselves — flood the full bake.
+    if (globalVarnish && globalVarnish !== VARNISH_NONE) {
+        varCtx.globalCompositeOperation = "source-over";
+        varCtx.fillStyle = "#ffffff";
+        if (isEmptyCanvas) {
+            varCtx.fillRect(0, 0, bakeWidth, bakeHeight);
+        } else {
+            floodVarnishFromAlpha(varCtx, alphaCanvas);
+        }
+        primaryVarnishType = preferVarnishType(primaryVarnishType, globalVarnish);
+    }
+
     applyAlphaMaskToMap(varnishCanvas, alphaCanvas);
 
     const hasFoil = foilMaskEntries.length > 0;
@@ -831,13 +1125,26 @@ export async function bakeMapsForSide(editor, side, options = {}) {
     }
 
     const hasEmboss = canvasHasBrightContent(blurredDisp);
-    const hasVarnish = globalVarnish !== VARNISH_NONE;
+    const hasVarnish = canvasHasBrightContent(varnishCanvas);
+    if (!hasVarnish) {
+        primaryVarnishType = VARNISH_NONE;
+    }
+    if (hasEmboss && !(maxReliefMm > 0)) {
+        maxReliefMm = REFERENCE_RELIEF_MM;
+    }
+    if (!hasEmboss) {
+        maxReliefMm = 0;
+    }
+
+    const clearcoatCanvas = hasVarnish
+        ? buildClearcoatCanvas(varnishCanvas, bakeWidth, bakeHeight)
+        : null;
 
     const normalCanvas = hasEmboss
         ? generateNormalMapFromHeight(blurredDisp, normalStrength)
         : null;
     let roughnessCanvas = hasVarnish
-        ? buildRoughnessMap(varnishCanvas, globalVarnish, bakeWidth, bakeHeight, alphaCanvas)
+        ? buildRoughnessMap(varnishCanvas, primaryVarnishType, bakeWidth, bakeHeight, alphaCanvas)
         : null;
     if (hasFoil) {
         roughnessCanvas = mergeRoughnessMaps(
@@ -880,12 +1187,15 @@ export async function bakeMapsForSide(editor, side, options = {}) {
         alphaCanvas,
         displacementCanvas: blurredDisp,
         varnishCanvas,
+        clearcoatCanvas,
         foilMetalnessCanvas,
         normalCanvas: normalCanvas || blurredDisp,
         roughnessCanvas: roughnessCanvas || foilRoughnessCanvas || blurredDisp,
         hasEmboss,
         hasVarnish,
         hasFoil,
+        primaryVarnishType,
+        maxReliefMm,
         widthMm,
         heightMm,
         aspect: bakeWidth / bakeHeight,
@@ -894,7 +1204,7 @@ export async function bakeMapsForSide(editor, side, options = {}) {
         return maps;
     } finally {
         for (const fab of fabricCanvases) {
-            await applyCanvasFinishPreviewToCanvas(fab);
+            fab.requestRenderAll();
         }
     }
 }

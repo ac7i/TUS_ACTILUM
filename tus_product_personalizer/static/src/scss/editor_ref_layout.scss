@@ -280,37 +280,75 @@
         flex: 0 0 var(--tus-ref-rail-w) !important;
         width: var(--tus-ref-rail-w) !important;
         height: 100% !important;
+        display: flex !important;
         flex-direction: column !important;
-        padding: 10px 0 12px;
+        padding: 8px 0 0;
         border-right: 1px solid #e5e7eb;
         background: #fff;
+        overflow: hidden;
+    }
+
+    .sidebar .sidebar_options .sidebar_tools_list {
+        flex: 1 1 auto;
+        min-height: 0;
         overflow-y: auto;
         overflow-x: hidden;
-        scrollbar-width: none; /* Firefox */
-        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         &::-webkit-scrollbar {
-            display: none; /* Chrome, Safari and Opera */
+            display: none;
         }
     }
 
     .sidebar .sidebar_options .fab_item {
         flex-direction: column;
-        padding: 14px 8px;
-        margin: 4px 10px;
+        padding: 10px 6px;
+        margin: 3px 8px;
         border-radius: 12px;
         border: none;
-        gap: 8px;
-        min-height: 84px;
+        gap: 6px;
+        min-height: 64px;
+    }
+
+    .sidebar .sidebar_options .fab_item_help {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: calc(100% - 16px);
+        margin: auto 8px 10px;
+        padding: 12px 6px;
+        min-height: 68px;
+        gap: 6px;
+        border: none;
+        border-top: 1px solid #e5e7eb;
+        border-radius: 0;
+        background: #fff;
+        color: #6b7280;
+        cursor: pointer;
+
+        &:hover {
+            color: var(--tus-ref-accent);
+            background: var(--tus-ref-accent-soft);
+        }
+
+        .fab_icon {
+            font-size: 22px;
+            width: 22px;
+            height: 22px;
+            line-height: 22px;
+        }
     }
 
     @media (max-height: 860px) {
         .sidebar .sidebar_options {
-            padding: 6px 0 8px;
+            padding: 6px 0 0;
         }
         .sidebar .sidebar_options .fab_item {
-            padding: 10px 6px;
-            margin: 3px 6px;
-            min-height: 70px;
+            padding: 8px 5px;
+            margin: 2px 6px;
+            min-height: 56px;
             gap: 4px;
         }
         .sidebar .sidebar_options .fab_icon {
@@ -320,16 +358,20 @@
         .sidebar .sidebar_options .fab_label {
             font-size: 11px;
         }
+        .sidebar .sidebar_options .fab_item_help {
+            min-height: 60px;
+            padding: 10px 5px;
+        }
     }
 
     @media (max-height: 750px) {
         .sidebar .sidebar_options {
-            padding: 4px 0 6px;
+            padding: 4px 0 0;
         }
         .sidebar .sidebar_options .fab_item {
             padding: 6px 4px;
             margin: 2px 4px;
-            min-height: 58px;
+            min-height: 50px;
             gap: 2px;
         }
         .sidebar .sidebar_options .fab_icon {
@@ -339,11 +381,15 @@
         .sidebar .sidebar_options .fab_label {
             font-size: 10px;
         }
+        .sidebar .sidebar_options .fab_item_help {
+            min-height: 54px;
+            padding: 8px 4px;
+        }
     }
 
     .sidebar .sidebar_options .fab_icon {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         object-fit: contain;
     }
 
@@ -352,7 +398,7 @@
     }
 
     .sidebar .sidebar_options .fab_label {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 500;
         color: #6b7280;
         text-align: center;
@@ -451,35 +497,38 @@
             font-size: 14px !important;
         }
 
-        .section_image .default_images .upload-library-grid {
-            display: flex !important;
-            flex-wrap: wrap !important;
+        .section_image .default_images .fab_upload_thumbs {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px !important;
         }
 
-        .section_image .default_images .upload-library-item {
-            flex: 0 0 calc(50% - 5px) !important;
-            width: calc(50% - 5px) !important;
-            max-width: calc(50% - 5px) !important;
+        .section_image .default_images .upload-thumb-card {
+            min-width: 0 !important;
+            width: auto !important;
+            max-width: 100% !important;
+            flex: none !important;
         }
     }
 
-    // Upload library — always 2 thumbnails per row in the tool panel
-    .upload-library-grid {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 10px !important;
+    // Upload library — same 2-col recipe as .fab_swap_container
+    .fab_upload_thumbs {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        grid-auto-rows: auto !important;
+        gap: 12px !important;
         width: 100% !important;
         box-sizing: border-box !important;
     }
 
-    .upload-library-item.image-item {
-        flex: 0 0 calc(50% - 5px) !important;
-        width: calc(50% - 5px) !important;
-        max-width: calc(50% - 5px) !important;
+    .fab_upload_thumbs .upload-thumb-card {
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: 100% !important;
         box-sizing: border-box !important;
     }
 
-    .upload-library-item__media {
+    .upload-thumb-card__media {
         cursor: pointer;
     }
 
@@ -1085,6 +1134,176 @@
         inset: 0;
         z-index: 1055;
         background: rgba(15, 23, 42, 0.04);
+    }
+
+    .tus-help-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1065;
+        background: rgba(15, 23, 42, 0.35);
+    }
+
+    .tus-help-dialog {
+        position: fixed;
+        z-index: 1070;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        flex-direction: column;
+        width: tus-css('min(560px, calc(100vw - 32px))');
+        max-height: tus-css('min(80vh, calc(100dvh - 48px))');
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+        &.open {
+            display: flex;
+        }
+    }
+
+    .tus-help-dialog-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px 12px;
+        border-bottom: 1px solid #f1f5f9;
+        flex-shrink: 0;
+    }
+
+    .tus-help-dialog-close {
+        background: transparent;
+        border: none;
+        color: #64748b;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+    }
+
+    .tus-help-dialog-footer {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 16px 20px 20px;
+        border-top: 1px solid #f1f5f9;
+        flex-shrink: 0;
+    }
+
+    .tus-help-share-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0;
+    }
+
+    .tus-help-share-url {
+        background-color: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #475569 !important;
+        font-size: 12px !important;
+        padding: 8px 12px !important;
+        border-radius: 8px !important;
+        font-family: monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+        width: 100%;
+        box-shadow: none !important;
+    }
+
+    .tus-help-copy-link {
+        background-color: var(--tus-ref-accent, #4d5038) !important;
+        color: var(--tus-button-text, #ffffff) !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        padding: 10px 16px !important;
+        border-radius: 8px !important;
+        border: none !important;
+        transition: filter 0.15s ease, transform 0.1s ease !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+
+        &:hover {
+            filter: brightness(0.92);
+            color: var(--tus-button-text, #ffffff) !important;
+        }
+
+        &:active {
+            transform: scale(0.98);
+        }
+    }
+
+    .tus-help-dialog-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    .tus-help-dialog-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .tus-help-video-ratio {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%;
+        margin-bottom: 16px;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+
+        iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+    }
+
+    .tus-help-html-content {
+        color: #374151;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        p:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    .tus-help-page-body {
+        color: #374151;
+        line-height: 1.6;
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
     }
 
     .tus-product-info-panel.sidebar-panel {
@@ -1760,9 +1979,9 @@
             width: 100% !important;
             height: 100% !important;
             min-height: 0 !important;
-            justify-content: space-around !important;
+            justify-content: flex-start !important;
             align-items: stretch !important;
-            padding: 6px 8px !important;
+            padding: 6px 4px !important;
             border-right: none !important;
             overflow-x: auto !important;
             overflow-y: hidden !important;
@@ -1774,18 +1993,57 @@
             }
         }
 
+        // Tools scroll horizontally; Help sits as a normal dock item (not full-width).
+        .sidebar .sidebar_options .sidebar_tools_list {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            flex: 0 0 auto !important;
+            align-items: stretch !important;
+            width: auto !important;
+            height: 100% !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
         .sidebar .sidebar_options .fab_item {
-            flex: 1 1 0 !important;
+            flex: 0 0 auto !important;
             flex-direction: column !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            min-width: 72px !important;
-            max-width: none !important;
+            min-width: 68px !important;
+            width: 68px !important;
+            max-width: 80px !important;
             min-height: auto !important;
-            margin: 0 3px !important;
-            padding: 8px 6px !important;
-            gap: 6px !important;
+            margin: 0 2px !important;
+            padding: 8px 4px !important;
+            gap: 4px !important;
+        }
+
+        .sidebar .sidebar_options .fab_item_help {
+            flex: 0 0 auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 68px !important;
+            min-width: 68px !important;
+            max-width: 80px !important;
+            min-height: auto !important;
+            height: auto !important;
+            margin: 0 2px !important;
+            padding: 8px 4px !important;
+            gap: 4px !important;
+            border: none !important;
+            border-top: none !important;
+            border-radius: 12px !important;
+            background: transparent !important;
+            color: #6b7280 !important;
+            align-self: stretch !important;
         }
 
         .sidebar .sidebar_options .fab_icon {
@@ -1794,8 +2052,9 @@
         }
 
         .sidebar .sidebar_options .fab_label {
-            font-size: 11px !important;
+            font-size: 10px !important;
             line-height: 1.15 !important;
+            white-space: nowrap !important;
         }
 
         .sidebar .options_content {
@@ -2990,5 +3249,36 @@
     }
     to {
         transform: translateY(0);
+    }
+}
+
+// Print Finish panel (customer texture / varnish uploads on selected layer)
+.section_tool_finish {
+    .fab_finish_panel {
+        .tus-texture-file-btn,
+        .tus-varnish-file-btn {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.75rem;
+        }
+        .tus-varnish-area-block.tus-disabled {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+        .tus-varnish-file-row {
+            margin-bottom: 0.25rem;
+        }
+        .tus-varnish-file-row--active {
+            .tus-varnish-file-btn {
+                box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.35);
+            }
+        }
+        .tus-varnish-zones {
+            font-size: 0.875rem;
+        }
+        .tus-varnish-cover-group {
+            .form-check-label {
+                font-weight: 500;
+            }
+        }
     }
 }

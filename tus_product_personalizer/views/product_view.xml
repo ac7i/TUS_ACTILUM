@@ -119,6 +119,7 @@
                 <page name="print2web" string="Print To Web">
                     <field name="show_printing_method_config" invisible="1"/>
                     <field name="show_3d_preview_config" invisible="1"/>
+                    <field name="show_texture_config" invisible="1"/>
                     <field name="show_vdp_config" invisible="1"/>
                     <group string="Empty Canvas">
                         <field name="empty_canvas"/>
@@ -140,6 +141,13 @@
                     </div>
                     <group string="3D Preview" invisible="not show_3d_preview_config">
                         <field name="personalizer_enable_3d_preview"/>
+                    </group>
+                    <group string="Texture Library" invisible="not show_texture_config">
+                        <field name="personalizer_enable_texture"/>
+                    </group>
+                    <group string="Print Finish (Texture &amp; Varnish)">
+                        <field name="personalizer_enable_finish_texture"/>
+                        <field name="personalizer_enable_finish_varnish"/>
                     </group>
                     <group string="Variable Data Printing" invisible="not show_vdp_config or empty_canvas">
                         <field name="personalizer_enable_vdp"/>

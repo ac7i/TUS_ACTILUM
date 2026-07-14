@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="help_content_default" model="product.personalizer.help">
+        <field name="name">Designer Help</field>
+        <field name="sequence">10</field>
+        <field name="active" eval="True"/>
+        <field name="body"><![CDATA[
+<p>Welcome to the product designer. Use the tools on the left to upload images, add text, and customize your product.</p>
+<p>When you are finished, save your design and add it to the cart.</p>
+        ]]></field>
+    </record>
+
+</odoo>

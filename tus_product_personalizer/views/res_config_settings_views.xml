@@ -52,6 +52,11 @@
                              help="Enable PBR 3D preview in the designer. Enable it per product on the Print To Web tab.">
                         <field name="personalizer_enable_3d_preview"/>
                     </setting>
+                    <setting id="personalizer_texture_setting"
+                             string="Texture Library"
+                             help="Enable the admin texture library in the designer. Enable it per product on the Print To Web tab.">
+                        <field name="personalizer_enable_texture"/>
+                    </setting>
                     <setting id="personalizer_download_setting"
                              string="Download"
                              help="Show the download button in the editor header">
@@ -61,6 +66,11 @@
                              string="Share Design"
                              help="Show the share button in the editor header to create shareable design links">
                         <field name="personalizer_enable_share"/>
+                    </setting>
+                    <setting id="personalizer_help_setting"
+                             string="Designer Help"
+                             help="Show the help button at the bottom of the designer sidebar">
+                        <field name="personalizer_enable_help"/>
                     </setting>
                     <setting id="personalizer_matrix_setting"
                              string="Matrix Table"

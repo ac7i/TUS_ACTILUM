@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { getPBRSettings, reliefMmToDisplacementScale, DEFAULT_RELIEF_MM } from "./finish_effects";
+import { getPBRSettings, reliefMmToDisplacementScale, REFERENCE_RELIEF_MM } from "./finish_effects";
 import { canvasToTexture, dataUrlToTexture } from "./texture_baker";
 
 function getTHREE() {
@@ -223,7 +223,11 @@ export class TusPBRViewer {
         }
         this._disposeTextures();
 
-        const pbr = getPBRSettings({ ...settings, hasFoil: !!maps.hasFoil });
+        const hasEmboss = !!maps.hasEmboss;
+        const hasVarnish = !!maps.hasVarnish;
+        const hasFoil = !!maps.hasFoil;
+        const varnishType = maps.primaryVarnishType || settings.varnishType || "none";
+        const pbr = getPBRSettings({ ...settings, varnishType, hasFoil });
         const aspect = maps.aspect || 1;
         const maxSize = 1.6;
         let planeW = maxSize;
@@ -236,10 +240,6 @@ export class TusPBRViewer {
         this.mesh.geometry.dispose();
         this.mesh.geometry = new THREE.PlaneGeometry(planeW, planeH, 192, 192);
 
-        const hasEmboss = !!maps.hasEmboss;
-        const hasVarnish = !!maps.hasVarnish;
-        const hasFoil = !!maps.hasFoil;
-        const varnishType = settings.varnishType || "none";
         const usePhysical = hasEmboss || hasVarnish || hasFoil;
 
         this._setFoilLighting(hasFoil);
@@ -310,6 +310,17 @@ export class TusPBRViewer {
             this._textures.push(roughTex);
         }
 
+        let clearcoatTex = null;
+        if (hasVarnish && maps.clearcoatCanvas) {
+            clearcoatTex = canvasToTexture(THREE, maps.clearcoatCanvas, {
+                colorSpace: "linear",
+                generateMipmaps: false,
+            });
+            configureDataTexture(THREE, clearcoatTex);
+            clearcoatTex.wrapS = clearcoatTex.wrapT = THREE.ClampToEdgeWrapping;
+            this._textures.push(clearcoatTex);
+        }
+
         let metalTex = null;
         if (hasFoil && maps.foilMetalnessCanvas) {
             metalTex = canvasToTexture(THREE, maps.foilMetalnessCanvas, {
@@ -321,9 +332,21 @@ export class TusPBRViewer {
             this._textures.push(metalTex);
         }
 
-        const reliefScale = hasEmboss
-            ? reliefMmToDisplacementScale(settings.reliefMm ?? pbr.reliefMm ?? DEFAULT_RELIEF_MM)
-            : 0;
+        // Displacement scale must follow the strongest embossed layer on the bake —
+        // do NOT use a varnish-only layer's reliefMm=0 (that was zeroing text emboss).
+        let reliefMm = 0;
+        if (hasEmboss) {
+            if (Number(maps.maxReliefMm) > 0) {
+                reliefMm = Number(maps.maxReliefMm);
+            } else if (Number(settings.reliefMm) > 0) {
+                reliefMm = Number(settings.reliefMm);
+            } else if (Number(pbr.reliefMm) > 0) {
+                reliefMm = Number(pbr.reliefMm);
+            } else {
+                reliefMm = REFERENCE_RELIEF_MM;
+            }
+        }
+        const reliefScale = reliefMmToDisplacementScale(reliefMm);
 
         // Keep diffuse map for visibility/alpha; boost emissive so PBR lights do not wash out color.
         material.map = colorTex;
@@ -338,19 +361,20 @@ export class TusPBRViewer {
             hasEmboss ? pbr.normalStrength : 1,
             hasEmboss ? pbr.normalStrength : 1
         );
-        material.roughness = (hasVarnish || hasFoil) ? pbr.baseRoughness : 1.0;
+        // Roughness map already encodes matte substrate vs coated regions — do not
+        // multiply by a low uniform roughness (that would gloss the whole plane).
+        material.roughness = 1.0;
         material.roughnessMap = roughTex;
         material.metalnessMap = metalTex;
         material.metalness = hasFoil ? pbr.foilMetalness : 0.0;
         material.clearcoat = hasVarnish ? pbr.clearcoat : 0;
         material.clearcoatRoughness = hasVarnish ? pbr.clearcoatRoughness : 1;
+        material.clearcoatMap = clearcoatTex;
 
+        // Sheen is uniform on MeshPhysicalMaterial — keep it off so satin/gloss
+        // stay confined to clearcoatMap / roughnessMap regions.
         if (material.sheen instanceof THREE.Color) {
-            if (hasVarnish && pbr.useSheenColor) {
-                material.sheen.set(0xffffff);
-            } else {
-                material.sheen.set(0x000000);
-            }
+            material.sheen.set(0x000000);
         }
 
         material.alphaMap = null;

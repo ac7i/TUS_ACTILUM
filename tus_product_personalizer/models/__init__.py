@@ -11,9 +11,11 @@ from . import product_template_attribute_value
 from . import product_printing_method
 from . import product_design_template
 from . import editor_text_template
+from . import editor_texture
 from . import editor_canvas_preset
 from . import editor_canvas_product_option
 from . import product_design_share
 from . import orderline_vdp_record
 from . import sale_order
+from . import product_personalizer_help
 
