@@ -291,6 +291,15 @@ export const fabricUploadMixin = {
                         filePixels: options.filePixels,
                     });
                 }
+                if (options.originalAttachmentId) {
+                    group.originalAttachmentId = options.originalAttachmentId;
+                }
+                if (options.previewScale != null) {
+                    group.previewScale = options.previewScale;
+                }
+                if (options.sourceDpi) {
+                    group.sourceFileDpi = options.sourceDpi;
+                }
 
                 targetCanvas.add(group);
                 targetCanvas.setActiveObject(group);
@@ -306,6 +315,85 @@ export const fabricUploadMixin = {
     _isRasterUploadFile: function (file) {
         const ext = (file.name.split(".").pop() || "").toLowerCase();
         return ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext);
+    },
+
+    _isProductionUploadFile: function (file) {
+        const ext = (file.name.split(".").pop() || "").toLowerCase();
+        return ["tif", "tiff", "pdf"].includes(ext);
+    },
+
+    _shouldUseMultipartUpload: function (file) {
+        if (!file) {
+            return false;
+        }
+        // Prefer multipart for production formats and anything over ~1.5 MB
+        // to avoid base64 JSON payload bloat.
+        return this._isProductionUploadFile(file) || file.size > 1.5 * 1024 * 1024;
+    },
+
+    _uploadArtworkViaMultipart: function (file, options) {
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+        if (options && options.vectorize != null) {
+            formData.append("vectorize", options.vectorize ? "1" : "0");
+        }
+        if (options && options.auto_detect != null) {
+            formData.append("auto_detect", options.auto_detect ? "1" : "0");
+        }
+        return fetch("/canvas/upload_image_multipart", {
+            method: "POST",
+            body: formData,
+            credentials: "same-origin",
+        }).then(async (res) => {
+            let payload = null;
+            try {
+                payload = await res.json();
+            } catch (_err) {
+                payload = null;
+            }
+            if (!res.ok) {
+                const msg =
+                    (payload && payload.error) ||
+                    _t("Upload failed. Check file type, size, and try again.");
+                throw new Error(msg);
+            }
+            return payload || {};
+        });
+    },
+
+    _applyUploadResultToCanvas: function (result, canvas, fileMeta) {
+        const self = this;
+        if (result.error === "read_only") {
+            return Promise.reject(
+                Object.assign(new Error("read_only"), { shareReadOnly: true })
+            );
+        }
+        if (result.error) {
+            return Promise.reject(new Error(result.error));
+        }
+        const isPhoto = self._isEmbeddedPhotoSvgFromUpload(result, result.svg);
+        return self
+            ._loadSvgGroupOnCanvas(result.svg, {
+                backendId: result.id,
+                filename: result.name,
+                targetCanvas: canvas,
+                isEmbeddedPhotoSvg: isPhoto,
+                sourceWidth: result.source_width,
+                sourceHeight: result.source_height,
+                originalAttachmentId: result.original_attachment_id || false,
+                previewScale: result.preview_scale || 1,
+                sourceDpi: result.source_dpi || false,
+                filePixels: fileMeta
+                    ? {
+                          width: fileMeta.width,
+                          height: fileMeta.height,
+                      }
+                    : null,
+            })
+            .then(function (group) {
+                self._appendUploadLibraryItem(result);
+                return group;
+            });
     },
 
     _readRasterFileDimensions: function (file) {
@@ -466,67 +554,69 @@ export const fabricUploadMixin = {
         if (ext === "ai" || ext === "eps") {
             return self.uploadAndConvertToSVG(file, canvas);
         }
-
-        return self
-            ._confirmUploadDpiIfNeeded(file, canvas)
-            .then(function (fileMeta) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = function (event) {
-                        const base64 = event.target.result.split(",")[1];
-                        self.rpc("/canvas/upload_image", {
-                            filename: file.name,
-                            filedata: base64,
-                        }).then(function (result) {
-                            if (result.error === "read_only") {
-                                reject(
-                                    Object.assign(new Error("read_only"), {
-                                        shareReadOnly: true,
-                                    })
-                                );
-                                return;
-                            }
-                            if (result.error) {
-                                reject(new Error(result.error));
-                                return;
-                            }
-                            const isPhoto = self._isEmbeddedPhotoSvgFromUpload(
-                                result,
-                                result.svg
-                            );
-                            self._loadSvgGroupOnCanvas(result.svg, {
-                                backendId: result.id,
-                                filename: result.name,
-                                targetCanvas: canvas,
-                                isEmbeddedPhotoSvg: isPhoto,
-                                sourceWidth: result.source_width,
-                                sourceHeight: result.source_height,
-                                filePixels: fileMeta
-                                    ? {
-                                          width: fileMeta.width,
-                                          height: fileMeta.height,
-                                      }
-                                    : null,
-                            }).then(function (group) {
-                                self._appendUploadLibraryItem(result);
-                                resolve(group);
-                            }).catch(reject);
-                        }).catch(reject);
-                    };
-                    reader.onerror = function () {
-                        reject(new Error("Failed to read file."));
-                    };
-                    reader.readAsDataURL(file);
+        // TIFF/PDF always go through multipart production pipeline.
+        if (self._isProductionUploadFile(file)) {
+            self.startLoader?.(_t("Preparing production artwork…"), { light: true });
+            return self
+                ._uploadArtworkViaMultipart(file)
+                .then(function (result) {
+                    return self._applyUploadResultToCanvas(result, canvas, null);
+                })
+                .finally(function () {
+                    self.removeLoader?.();
                 });
-            })
-            .catch(function (err) {
-                if (err && (err.dpiCancelled || err.message === "dpi_cancelled")) {
-                    return Promise.reject(
-                        Object.assign(new Error("dpi_cancelled"), { dpiCancelled: true })
-                    );
-                }
-                throw err;
-            });
+        }
+
+        const uploadPromise = self._shouldUseMultipartUpload(file)
+            ? self
+                  ._confirmUploadDpiIfNeeded(file, canvas)
+                  .then(function (fileMeta) {
+                      return self
+                          ._uploadArtworkViaMultipart(file)
+                          .then(function (result) {
+                              return self._applyUploadResultToCanvas(
+                                  result,
+                                  canvas,
+                                  fileMeta
+                              );
+                          });
+                  })
+            : self
+                  ._confirmUploadDpiIfNeeded(file, canvas)
+                  .then(function (fileMeta) {
+                      return new Promise((resolve, reject) => {
+                          const reader = new FileReader();
+                          reader.onload = function (event) {
+                              const base64 = event.target.result.split(",")[1];
+                              self.rpc("/canvas/upload_image", {
+                                  filename: file.name,
+                                  filedata: base64,
+                              })
+                                  .then(function (result) {
+                                      return self._applyUploadResultToCanvas(
+                                          result,
+                                          canvas,
+                                          fileMeta
+                                      );
+                                  })
+                                  .then(resolve)
+                                  .catch(reject);
+                          };
+                          reader.onerror = function () {
+                              reject(new Error("Failed to read file."));
+                          };
+                          reader.readAsDataURL(file);
+                      });
+                  });
+
+        return uploadPromise.catch(function (err) {
+            if (err && (err.dpiCancelled || err.message === "dpi_cancelled")) {
+                return Promise.reject(
+                    Object.assign(new Error("dpi_cancelled"), { dpiCancelled: true })
+                );
+            }
+            throw err;
+        });
     },
 
     _getEmbeddedPhotoRasterSource: function (group) {

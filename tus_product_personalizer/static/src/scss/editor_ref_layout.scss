@@ -317,27 +317,30 @@
         align-items: center;
         justify-content: center;
         width: calc(100% - 16px);
-        margin: auto 8px 10px;
-        padding: 12px 6px;
-        min-height: 68px;
+        margin: auto 8px 12px; // Pushed to the bottom
+        padding: 10px 6px;
+        min-height: 64px;
         gap: 6px;
         border: none;
-        border-top: 1px solid #e5e7eb;
-        border-radius: 0;
-        background: #fff;
-        color: #6b7280;
+        border-radius: 12px; // Match other items
+        background: #f8fafc; // Distinct subtle background
+        color: #475569;
         cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 
         &:hover {
             color: var(--tus-ref-accent);
             background: var(--tus-ref-accent-soft);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-1px);
         }
 
         .fab_icon {
-            font-size: 22px;
-            width: 22px;
-            height: 22px;
-            line-height: 22px;
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
         }
     }
 
@@ -434,6 +437,34 @@
         padding: 16px 18px 14px;
         border-bottom: 1px solid #f0f0f0;
         flex-shrink: 0;
+        
+        .tus-btn-icon {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: #6b7280;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.2s ease;
+            
+            &:hover {
+                background: #f3f4f6;
+                color: #374151;
+            }
+
+            &.tus-panel-help-btn {
+                color: var(--tus-ref-accent);
+                background: var(--tus-ref-accent-soft);
+                &:hover {
+                    background: color-mix(in srgb, var(--tus-ref-accent) 15%, transparent);
+                }
+            }
+        }
     }
 
     .sidebar .options_content:not(.tus-panel-visible) .tus-panel-header {

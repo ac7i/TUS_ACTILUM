@@ -148,6 +148,28 @@
                              help="CMYK converts exported SVG/AI files to print-ready device-cmyk() colors. RGB keeps screen colors in export files.">
                         <field name="personalizer_print_color_mode"/>
                     </setting>
+                    <setting id="personalizer_upload_limits_setting"
+                             string="Artwork Upload Limits"
+                             help="Limits for TIFF/PDF/high-resolution uploads. Originals are retained for production; the editor uses a bounded preview.">
+                        <div class="content-group">
+                            <div class="mt8 row">
+                                <label for="personalizer_upload_max_mb" string="Max size (MB)" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_upload_max_mb" class="col-lg-3"/>
+                            </div>
+                            <div class="mt8 row">
+                                <label for="personalizer_upload_max_pixels" string="Max pixels" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_upload_max_pixels" class="col-lg-3"/>
+                            </div>
+                            <div class="mt8 row">
+                                <label for="personalizer_preview_max_side" string="Preview max side (px)" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_preview_max_side" class="col-lg-3"/>
+                            </div>
+                            <div class="text-muted mt8">
+                                TIFF uses the first frame. PDF uses the first page rasterized at 300 DPI.
+                                Extremely large artwork can upload the production file with a lower-resolution editor proxy.
+                            </div>
+                        </div>
+                    </setting>
                 </block>
                 <block title="Designer Appearance" id="personalizer_appearance_settings">
                     <setting id="personalizer_button_color_setting"

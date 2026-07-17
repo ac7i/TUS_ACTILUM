@@ -7,6 +7,118 @@ from .editor_canvas_preset import CANVAS_UNIT_SELECTION
 class ProductTemplate(models.Model):
     _inherit = "product.template"
 
+    personalizer_enable_area_pricing: bool = fields.Boolean(
+        string="Area-Based Pricing",
+        default=False,
+        help="Price empty-canvas products from physical size (m² × rate, with a minimum charge).",
+    )
+    personalizer_area_price_per_m2: float = fields.Float(
+        string="Price per m²",
+        digits="Product Price",
+        default=0.0,
+        help="Base product price = max(minimum charge, printable area × this rate).",
+    )
+    personalizer_area_min_charge: float = fields.Float(
+        string="Minimum Area Charge",
+        digits="Product Price",
+        default=0.0,
+        help="Minimum base price charged for any printable size when area pricing is enabled.",
+    )
+    personalizer_emboss_price_0_2: float = fields.Float(
+        string="Emboss 0.2 mm (€/m²)",
+        digits="Product Price",
+        default=0.0,
+    )
+    personalizer_emboss_price_0_3: float = fields.Float(
+        string="Emboss 0.3 mm (€/m²)",
+        digits="Product Price",
+        default=0.0,
+    )
+    personalizer_emboss_price_0_4: float = fields.Float(
+        string="Emboss 0.4 mm (€/m²)",
+        digits="Product Price",
+        default=0.0,
+    )
+    personalizer_emboss_price_0_5: float = fields.Float(
+        string="Emboss 0.5 mm (€/m²)",
+        digits="Product Price",
+        default=0.0,
+    )
+    personalizer_varnish_gloss_price_per_m2: float = fields.Float(
+        string="Varnish Gloss (€/m²)",
+        digits="Product Price",
+        default=0.0,
+    )
+    personalizer_varnish_satin_price_per_m2: float = fields.Float(
+        string="Varnish Satin (€/m²)",
+        digits="Product Price",
+        default=0.0,
+    )
+
+    _personalizer_area_price_nonneg = models.Constraint(
+        "CHECK(personalizer_area_price_per_m2 >= 0)",
+        "Area price per m² cannot be negative.",
+    )
+    _personalizer_area_min_nonneg = models.Constraint(
+        "CHECK(personalizer_area_min_charge >= 0)",
+        "Minimum area charge cannot be negative.",
+    )
+    _personalizer_emboss_0_2_nonneg = models.Constraint(
+        "CHECK(personalizer_emboss_price_0_2 >= 0)",
+        "Emboss 0.2 mm surcharge cannot be negative.",
+    )
+    _personalizer_emboss_0_3_nonneg = models.Constraint(
+        "CHECK(personalizer_emboss_price_0_3 >= 0)",
+        "Emboss 0.3 mm surcharge cannot be negative.",
+    )
+    _personalizer_emboss_0_4_nonneg = models.Constraint(
+        "CHECK(personalizer_emboss_price_0_4 >= 0)",
+        "Emboss 0.4 mm surcharge cannot be negative.",
+    )
+    _personalizer_emboss_0_5_nonneg = models.Constraint(
+        "CHECK(personalizer_emboss_price_0_5 >= 0)",
+        "Emboss 0.5 mm surcharge cannot be negative.",
+    )
+    _personalizer_varnish_gloss_nonneg = models.Constraint(
+        "CHECK(personalizer_varnish_gloss_price_per_m2 >= 0)",
+        "Varnish gloss surcharge cannot be negative.",
+    )
+    _personalizer_varnish_satin_nonneg = models.Constraint(
+        "CHECK(personalizer_varnish_satin_price_per_m2 >= 0)",
+        "Varnish satin surcharge cannot be negative.",
+    )
+
+    def get_personalizer_pricing_config(self) -> dict:
+        """Return designer/checkout pricing rates for this product."""
+        self.ensure_one()
+        return {
+            "enable_area_pricing": bool(self.personalizer_enable_area_pricing),
+            "area_price_per_m2": float(self.personalizer_area_price_per_m2 or 0.0),
+            "area_min_charge": float(self.personalizer_area_min_charge or 0.0),
+            "emboss_prices": {
+                "0.2": float(self.personalizer_emboss_price_0_2 or 0.0),
+                "0.3": float(self.personalizer_emboss_price_0_3 or 0.0),
+                "0.4": float(self.personalizer_emboss_price_0_4 or 0.0),
+                "0.5": float(self.personalizer_emboss_price_0_5 or 0.0),
+            },
+            "varnish_prices": {
+                "gloss": float(self.personalizer_varnish_gloss_price_per_m2 or 0.0),
+                "satin": float(self.personalizer_varnish_satin_price_per_m2 or 0.0),
+            },
+        }
+
+    def compute_area_base_price(self, area_m2: float) -> float:
+        self.ensure_one()
+        from odoo.addons.tus_product_personalizer.utils.area_pricing import compute_area_base_price
+
+        if not self.personalizer_enable_area_pricing:
+            return 0.0
+        return compute_area_base_price(
+            area_m2,
+            self.personalizer_area_price_per_m2,
+            self.personalizer_area_min_charge,
+        )
+
     design_template_ids = fields.One2many(
         "product.design.template",
         "product_tmpl_id",

@@ -427,8 +427,8 @@ function _applyEmbossCanvasPreview(obj, reliefMm) {
         shadow: {
             color: "rgba(0,0,0,0.35)",
             blur: 2,
-            offsetX: depth * 0.35,
-            offsetY: depth * 0.35,
+            offsetX: 0,
+            offsetY: 0,
         },
         tusFinishPreviewActive: true,
     });

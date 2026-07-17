@@ -163,3 +163,15 @@ class ResConfigSettings(models.TransientModel):
         related='website_id.personalizer_print_color_mode',
         readonly=False,
     )
+    personalizer_upload_max_mb = fields.Integer(
+        related='website_id.personalizer_upload_max_mb',
+        readonly=False,
+    )
+    personalizer_upload_max_pixels = fields.Integer(
+        related='website_id.personalizer_upload_max_pixels',
+        readonly=False,
+    )
+    personalizer_preview_max_side = fields.Integer(
+        related='website_id.personalizer_preview_max_side',
+        readonly=False,
+    )

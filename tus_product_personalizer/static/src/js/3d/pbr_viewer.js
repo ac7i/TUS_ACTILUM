@@ -82,8 +82,8 @@ export class TusPBRViewer {
         this.renderer.toneMappingExposure = 1.0;
 
         this.scene = new THREE.Scene();
-        // Match the 2D editor canvas background so product colors read the same.
-        this.scene.background = new THREE.Color(0xffffff);
+        // Neutral studio background so white artwork stays distinguishable.
+        this.scene.background = new THREE.Color(0xd8dde5);
 
         this.camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
         this.camera.position.set(0, 0, 2.8);
@@ -114,12 +114,15 @@ export class TusPBRViewer {
             rim: this.rimLight.intensity,
         };
 
+        const segments = this._resolveMeshSegments();
         this.mesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(1, 1, 192, 192),
+            new THREE.PlaneGeometry(1, 1, segments, segments),
             this._createBasicMaterial(THREE)
         );
         this.productGroup.add(this.mesh);
         this._materialMode = "basic";
+        this._outline = null;
+        this._attachProductOutline(THREE);
 
         if (THREE.OrbitControls) {
             this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -238,7 +241,9 @@ export class TusPBRViewer {
             planeW = maxSize * aspect;
         }
         this.mesh.geometry.dispose();
-        this.mesh.geometry = new THREE.PlaneGeometry(planeW, planeH, 192, 192);
+        const segments = this._resolveMeshSegments();
+        this.mesh.geometry = new THREE.PlaneGeometry(planeW, planeH, segments, segments);
+        this._attachProductOutline(THREE);
 
         const usePhysical = hasEmboss || hasVarnish || hasFoil;
 
@@ -439,6 +444,7 @@ export class TusPBRViewer {
             this.controls.dispose();
         }
         this._disposeTextures();
+        this._disposeOutline();
         if (this.mesh?.geometry) {
             this.mesh.geometry.dispose();
         }
@@ -452,5 +458,56 @@ export class TusPBRViewer {
         if (labels) {
             labels.remove();
         }
+    }
+
+    _resolveMeshSegments() {
+        try {
+            const isMobile = typeof window !== "undefined"
+                && (window.matchMedia?.("(max-width: 768px)")?.matches || navigator.maxTouchPoints > 1);
+            const mem = navigator.deviceMemory || 4;
+            if (isMobile || mem <= 4) {
+                return 256;
+            }
+            if (mem >= 8) {
+                return 384;
+            }
+            return 320;
+        } catch (_err) {
+            return 256;
+        }
+    }
+
+    _disposeOutline() {
+        if (!this._outline) {
+            return;
+        }
+        try {
+            this.productGroup?.remove(this._outline);
+        } catch (_err) {
+            // ignore
+        }
+        if (this._outline.geometry) {
+            this._outline.geometry.dispose();
+        }
+        if (this._outline.material) {
+            this._outline.material.dispose();
+        }
+        this._outline = null;
+    }
+
+    _attachProductOutline(THREE) {
+        this._disposeOutline();
+        if (!this.mesh?.geometry || !this.productGroup) {
+            return;
+        }
+        const edges = new THREE.EdgesGeometry(this.mesh.geometry, 25);
+        const material = new THREE.LineBasicMaterial({
+            color: 0x5a6575,
+            transparent: true,
+            opacity: 0.55,
+        });
+        this._outline = new THREE.LineSegments(edges, material);
+        this._outline.renderOrder = 2;
+        this.productGroup.add(this._outline);
     }
 }

@@ -33,5 +33,13 @@
             <field name="purchase_ok" eval="False"/>
             <field name="description_sale">Surcharge for selected background textures (priced per m²).</field>
         </record>
+        <record id="product_finish_charge" model="product.product">
+            <field name="name">Print Finish Charge</field>
+            <field name="type">service</field>
+            <field name="lst_price">0.0</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="description_sale">Surcharge for emboss and varnish finishes (priced per object m²).</field>
+        </record>
     </data>
 </odoo>

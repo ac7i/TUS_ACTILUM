@@ -8,6 +8,7 @@
             <list string="Designer Help">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
+                <field name="context_key"/>
                 <field name="active"/>
                 <field name="share_url" widget="url"/>
             </list>
@@ -28,6 +29,7 @@
                     </div>
                     <group>
                         <group>
+                            <field name="context_key"/>
                             <field name="sequence"/>
                             <field name="video_url" placeholder="https://www.youtube.com/watch?v=..."/>
                             <field name="video_embed_url" readonly="1" invisible="not video_url"/>
@@ -44,7 +46,7 @@
                     </notebook>
                     <group string="Notes" colspan="2">
                         <div colspan="2" class="text-muted">
-                            <p>Only one help record can be active at a time. Activating this record will deactivate any other active help record.</p>
+                            <p>Only one help record can be active per context (Main, Product, Add Image, etc.). Activating this record will deactivate any other active help for the same context.</p>
                             <p>The shareable link always shows your latest help content and video after you save. The link itself does not change when you update the video.</p>
                         </div>
                     </group>

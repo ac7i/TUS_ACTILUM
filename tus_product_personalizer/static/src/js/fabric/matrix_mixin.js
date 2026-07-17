@@ -266,6 +266,17 @@ export const fabricMatrixMixin = {
             return;
         }
 
+        const cartBundleRaw = $('input[name="cart_design_bundle_json"]').val();
+        if (cartBundleRaw && !this._cartEditRestored) {
+            try {
+                const cartBundle = JSON.parse(cartBundleRaw);
+                await this._restoreDesignBundle(cartBundle, { fitToFullArea: true });
+                this._cartEditRestored = true;
+            } catch (e) {
+                console.error("Failed to restore cart design:", e);
+            }
+        }
+
         const defaultTemplateId = parseInt(
             $('input[name="default_product_template_id"]').val() || "0",
             10

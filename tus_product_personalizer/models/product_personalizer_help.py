@@ -4,6 +4,21 @@ import uuid
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 
+HELP_CONTEXT_SELECTION = [
+    ("main", "Main Options"),
+    ("swap", "Product"),
+    ("image", "Add Image"),
+    ("text", "Add Text"),
+    ("shapes", "Add Graphics"),
+    ("clipart", "Add Clipart"),
+    ("textures", "Base Texture"),
+    ("layers", "Manage Layers"),
+    ("templates", "Templates"),
+    ("finish", "Print Finish"),
+    ("vdp", "VDP"),
+    ("ai", "AI"),
+]
+
 
 class ProductPersonalizerHelp(models.Model):
     _name = "product.personalizer.help"
@@ -11,6 +26,14 @@ class ProductPersonalizerHelp(models.Model):
     _order = "sequence, id"
 
     name = fields.Char(string="Title", required=True, translate=True)
+    context_key = fields.Selection(
+        selection=HELP_CONTEXT_SELECTION,
+        string="Help Context",
+        required=True,
+        default="main",
+        index=True,
+        help="Which designer panel this help content belongs to.",
+    )
     body = fields.Html(
         string="Help Content",
         sanitize=True,
@@ -23,7 +46,7 @@ class ProductPersonalizerHelp(models.Model):
     )
     active = fields.Boolean(
         default=False,
-        help="Only one help record can be active at a time. The active record is shown in the designer.",
+        help="Only one help record can be active per context. Active records are shown in the designer.",
     )
     sequence = fields.Integer(default=10)
     share_token = fields.Char(
@@ -42,13 +65,10 @@ class ProductPersonalizerHelp(models.Model):
         help="Normalized embed URL used on the public help page and in the designer.",
     )
 
-    _sql_constraints = [
-        (
-            "share_token_unique",
-            "unique(share_token)",
-            "Each help record must have a unique share token.",
-        ),
-    ]
+    _share_token_unique = models.Constraint(
+        "unique(share_token)",
+        "Each help record must have a unique share token.",
+    )
 
     @api.depends("share_token")
     def _compute_share_url(self):
@@ -83,49 +103,72 @@ class ProductPersonalizerHelp(models.Model):
             return f"https://player.vimeo.com/video/{video_id}" if video_id.isdigit() else url
         return url
 
-    @api.constrains("active")
-    def _check_single_active(self):
-        if self.search_count([("active", "=", True)]) > 1:
-            raise ValidationError(_("Only one designer help record can be active at a time."))
+    @api.constrains("active", "context_key")
+    def _check_single_active_per_context(self):
+        for record in self.filtered("active"):
+            duplicates = self.search_count([
+                ("active", "=", True),
+                ("context_key", "=", record.context_key),
+                ("id", "!=", record.id),
+            ])
+            if duplicates:
+                raise ValidationError(
+                    _("Only one active designer help record is allowed for context '%s'.")
+                    % dict(HELP_CONTEXT_SELECTION).get(record.context_key, record.context_key)
+                )
 
     def _deactivate_other_active_records(self):
-        """Keep only records in ``self`` active; deactivate every other active row."""
-        others = self.search([("active", "=", True), ("id", "not in", self.ids)])
-        if others:
-            others.write({"active": False})
+        """Keep only records in ``self`` active for their contexts."""
+        for record in self.filtered("active"):
+            others = self.search([
+                ("active", "=", True),
+                ("context_key", "=", record.context_key),
+                ("id", "!=", record.id),
+            ])
+            if others:
+                others.write({"active": False})
 
-    def _ensure_single_active_globally(self):
-        active = self.search([("active", "=", True)], order="sequence, id")
-        if len(active) > 1:
-            active[1:].write({"active": False})
+    def _ensure_single_active_per_context(self):
+        for context_key, _label in HELP_CONTEXT_SELECTION:
+            active = self.search([
+                ("active", "=", True),
+                ("context_key", "=", context_key),
+            ], order="sequence, id")
+            if len(active) > 1:
+                active[1:].write({"active": False})
 
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
         if any(vals.get("active") for vals in vals_list):
-            keepers = records.filtered("active").sorted(key=lambda r: (r.sequence, r.id))
-            if keepers:
-                keepers[:1]._deactivate_other_active_records()
-            records._ensure_single_active_globally()
+            records.filtered("active")._deactivate_other_active_records()
+            records._ensure_single_active_per_context()
         return records
 
     def write(self, vals):
         res = super().write(vals)
-        if vals.get("active"):
+        if vals.get("active") or "context_key" in vals:
             self.filtered("active")._deactivate_other_active_records()
-            self._ensure_single_active_globally()
+            self._ensure_single_active_per_context()
         return res
 
     @api.model
     def get_active_for_designer(self):
-        """Return the single active help entry for the storefront designer."""
-        record = self.sudo().search([("active", "=", True)], limit=1, order="sequence, id")
-        if not record:
-            return {}
-        return {
-            "id": record.id,
-            "name": record.name or "",
-            "body": str(record.body or ""),
-            "video_url": record.video_url or "",
-            "share_url": record.share_url or "",
-        }
+        """Return active help entries keyed by context for the storefront designer."""
+        records = self.sudo().search([("active", "=", True)], order="sequence, id")
+        by_context = {}
+        for record in records:
+            by_context[record.context_key or "main"] = {
+                "id": record.id,
+                "name": record.name or "",
+                "body": str(record.body or ""),
+                "video_url": record.video_url or "",
+                "share_url": record.share_url or "",
+                "context_key": record.context_key or "main",
+            }
+        # Backward-compatible top-level payload: prefer main.
+        # Do not fall back to random context to prevent cross-contamination.
+        primary = by_context.get("main") or {}
+        payload = dict(primary)
+        payload["by_context"] = by_context
+        return payload

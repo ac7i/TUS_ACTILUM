@@ -145,9 +145,28 @@
                     <group string="Texture Library" invisible="not show_texture_config">
                         <field name="personalizer_enable_texture"/>
                     </group>
+                    <group string="Area Pricing" invisible="not empty_canvas">
+                        <field name="personalizer_enable_area_pricing"/>
+                        <field name="personalizer_area_price_per_m2"
+                               invisible="not personalizer_enable_area_pricing"/>
+                        <field name="personalizer_area_min_charge"
+                               invisible="not personalizer_enable_area_pricing"/>
+                    </group>
                     <group string="Print Finish (Texture &amp; Varnish)">
                         <field name="personalizer_enable_finish_texture"/>
                         <field name="personalizer_enable_finish_varnish"/>
+                        <field name="personalizer_emboss_price_0_2"
+                               invisible="not personalizer_enable_finish_texture"/>
+                        <field name="personalizer_emboss_price_0_3"
+                               invisible="not personalizer_enable_finish_texture"/>
+                        <field name="personalizer_emboss_price_0_4"
+                               invisible="not personalizer_enable_finish_texture"/>
+                        <field name="personalizer_emboss_price_0_5"
+                               invisible="not personalizer_enable_finish_texture"/>
+                        <field name="personalizer_varnish_gloss_price_per_m2"
+                               invisible="not personalizer_enable_finish_varnish"/>
+                        <field name="personalizer_varnish_satin_price_per_m2"
+                               invisible="not personalizer_enable_finish_varnish"/>
                     </group>
                     <group string="Variable Data Printing" invisible="not show_vdp_config or empty_canvas">
                         <field name="personalizer_enable_vdp"/>

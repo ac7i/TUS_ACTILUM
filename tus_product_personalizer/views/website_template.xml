@@ -111,4 +111,15 @@
         </div>
     </template>
 
+    <template id="cart_line_edit_design" inherit_id="website_sale.cart_lines">
+        <xpath expr="//t[@t-call='website_sale.cart_line_description_following_lines']" position="after">
+            <div t-if="line._is_personalizer_line()" class="mt-2">
+                <a t-att-href="line._get_personalizer_edit_url()"
+                   class="btn btn-sm btn-outline-primary tus-edit-review-design">
+                    <i class="fa fa-pencil me-1"/>Edit / Review Design
+                </a>
+            </div>
+        </xpath>
+    </template>
+
 </odoo>

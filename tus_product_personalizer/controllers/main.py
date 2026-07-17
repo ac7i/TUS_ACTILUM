@@ -96,10 +96,109 @@ class ProductDesigner(http.Controller):
             value = value.split(",", 1)[1]
         return value or False
 
-    VALID_TEXTURE_INTENSITY = {"0.3", "0.5", "0.7", "0.9"}
+    VALID_TEXTURE_INTENSITY = {"0.2", "0.3", "0.4", "0.5"}
     VALID_VARNISH_COVER_MODE = {"by_file", "all", "zones"}
 
     EMBOSS_FINISH_EFFECTS = frozenset({"emboss", "deboss", "foil_emboss"})
+
+    def _apply_pricing_config(self, personalizer_config, product_tmpl_id):
+        """Attach per-product area/finish pricing rates for designer live totals."""
+        product_tmpl = request.env['product.template'].sudo().browse(int(product_tmpl_id))
+        if product_tmpl.exists():
+            personalizer_config['pricing'] = product_tmpl.get_personalizer_pricing_config()
+        else:
+            personalizer_config['pricing'] = {
+                'enable_area_pricing': False,
+                'area_price_per_m2': 0.0,
+                'area_min_charge': 0.0,
+                'emboss_prices': {},
+                'varnish_prices': {},
+            }
+        return personalizer_config
+
+    def _compute_area_base_quote(self, product_tmpl, empty_canvas_meta=None):
+        from odoo.addons.tus_product_personalizer.utils.area_pricing import quote_area_base_price
+
+        meta = empty_canvas_meta if isinstance(empty_canvas_meta, dict) else {}
+        width = float(meta.get('width') or 0.0)
+        height = float(meta.get('height') or 0.0)
+        unit = meta.get('unit') or 'in'
+        margins = meta.get('margins_by_side') or {}
+        margin_mm = 0.0
+        if margins:
+            try:
+                from odoo.addons.tus_product_personalizer.models.empty_canvas_constants import (
+                    normalize_empty_canvas_margin_mm,
+                )
+                first_side = next(iter(margins.values()), None)
+                margin_mm = normalize_empty_canvas_margin_mm(first_side)
+            except Exception:
+                margin_mm = float(meta.get('margin_mm') or 0.0)
+        return quote_area_base_price(product_tmpl, width, height, unit, margin_mm)
+
+    def _extract_finish_objects_from_design(self, design, empty_canvas_meta=None):
+        """Build object finish footprints for surcharge calculation."""
+        from odoo.addons.tus_product_personalizer.utils.area_pricing import object_footprint_m2
+
+        meta = empty_canvas_meta if isinstance(empty_canvas_meta, dict) else {}
+        canvas_w = float(meta.get('width') or 0.0)
+        canvas_h = float(meta.get('height') or 0.0)
+        unit = meta.get('unit') or 'in'
+        finish_objects = []
+        for side_obj in design or []:
+            stage_w = float(side_obj.get('stage_width') or side_obj.get('canvas_width') or 0.0)
+            stage_h = float(side_obj.get('stage_height') or side_obj.get('canvas_height') or 0.0)
+            side_meta = side_obj.get('empty_canvas') or meta
+            side_w = float(side_meta.get('width') or canvas_w or 0.0)
+            side_h = float(side_meta.get('height') or canvas_h or 0.0)
+            side_unit = side_meta.get('unit') or unit
+            for area in side_obj.get('active_areas') or []:
+                area_stage_w = float(area.get('width') or stage_w or 0.0)
+                area_stage_h = float(area.get('height') or stage_h or 0.0)
+                for canvas_val in area.get('canvas_vals') or []:
+                    if not isinstance(canvas_val, dict):
+                        continue
+                    texture_active = bool(canvas_val.get('tusTextureActive'))
+                    varnish_type = str(canvas_val.get('tusVarnishType') or 'none').lower()
+                    if not texture_active and varnish_type in ('none', '', 'false'):
+                        continue
+                    obj_w = float(
+                        canvas_val.get('footprint_width')
+                        or canvas_val.get('width')
+                        or 0.0
+                    )
+                    obj_h = float(
+                        canvas_val.get('footprint_height')
+                        or canvas_val.get('height')
+                        or 0.0
+                    )
+                    scale_x = abs(float(canvas_val.get('scaleX') or 1.0))
+                    scale_y = abs(float(canvas_val.get('scaleY') or 1.0))
+                    if not canvas_val.get('footprint_width'):
+                        obj_w *= scale_x
+                        obj_h *= scale_y
+                    area_m2 = float(canvas_val.get('area_m2') or 0.0)
+                    if area_m2 <= 0 and area_stage_w > 0 and area_stage_h > 0 and side_w > 0 and side_h > 0:
+                        area_m2 = object_footprint_m2(
+                            obj_w, obj_h, area_stage_w, area_stage_h, side_w, side_h, side_unit,
+                        )
+                    finish_objects.append({
+                        'area_m2': area_m2,
+                        'tusTextureActive': texture_active,
+                        'tusTextureIntensityMm': canvas_val.get('tusTextureIntensityMm'),
+                        'tusVarnishType': varnish_type,
+                    })
+        return finish_objects
+
+    def _compute_finish_price_sum(self, product_tmpl, design, empty_canvas_meta=None, finish_objects=None):
+        from odoo.addons.tus_product_personalizer.utils.area_pricing import (
+            compute_finish_surcharge_from_objects,
+        )
+
+        objects = finish_objects
+        if objects is None:
+            objects = self._extract_finish_objects_from_design(design, empty_canvas_meta=empty_canvas_meta)
+        return compute_finish_surcharge_from_objects(product_tmpl, objects)
 
     @classmethod
     def _finish_vals_from_side(cls, side_obj, enable_texture=True, enable_varnish=True):
@@ -520,7 +619,13 @@ class ProductDesigner(http.Controller):
         return printing_method.setup_cost + (printing_method.unit_cost * total_order_qty)
 
     def _resolve_line_base_price(self, product, order=None, **kwargs):
-        """Garment unit price from the active pricelist (not list price)."""
+        """Garment/base unit price: area quote when enabled, otherwise pricelist."""
+        empty_canvas_meta = kwargs.get('empty_canvas_meta') or {}
+        product_tmpl = product.product_tmpl_id
+        if product_tmpl.personalizer_enable_area_pricing and empty_canvas_meta.get('width') and empty_canvas_meta.get('height'):
+            quote = self._compute_area_base_quote(product_tmpl, empty_canvas_meta=empty_canvas_meta)
+            if quote.get('enabled'):
+                return float(quote.get('amount') or 0.0)
         return self._get_product_unit_price(product, order=order)
 
     def _get_charge_product(self, xml_id, fallback_name):
@@ -828,10 +933,23 @@ class ProductDesigner(http.Controller):
             if product and product.exists()
             else 0.0
         )
+        if empty_canvas_mode and empty_canvas_dims.get('width') and empty_canvas_dims.get('height'):
+            area_quote = self._compute_area_base_quote(
+                product_tmpl,
+                empty_canvas_meta={
+                    'width': empty_canvas_dims.get('width'),
+                    'height': empty_canvas_dims.get('height'),
+                    'unit': empty_canvas_dims.get('unit'),
+                    'margins_by_side': margins_by_side,
+                },
+            )
+            if area_quote.get('enabled'):
+                product_unit_price = float(area_quote.get('amount') or 0.0)
 
         personalizer_config = self._apply_show_3d_preview(personalizer_config, product_tmpl_id)
         personalizer_config = self._apply_show_texture(personalizer_config, product_tmpl_id)
         personalizer_config = self._apply_show_finish_effects(personalizer_config, product_tmpl_id)
+        personalizer_config = self._apply_pricing_config(personalizer_config, product_tmpl_id)
         show_texture = personalizer_config.get('show_texture')
 
         product_template_ids = request.env["product.design.template"].sudo().search([
@@ -1125,6 +1243,55 @@ class ProductDesigner(http.Controller):
         return request.render(
             "tus_product_personalizer.product_design_customize",
             self._get_designer_context(product_tmpl_id, product_id, **kw),
+        )
+
+    @http.route(
+        ["/product/designer/edit/<int:sale_order_line_id>"],
+        type="http",
+        auth="public",
+        website=True,
+        csrf=False,
+    )
+    def open_cart_design_editor(self, sale_order_line_id, **kw):
+        """Reopen the designer for a personalized line that belongs to the current cart."""
+        order = request.cart
+        line = request.env["sale.order.line"].sudo().browse(int(sale_order_line_id))
+        if (
+            not order
+            or not line.exists()
+            or line.order_id.id != order.id
+            or not line._is_personalizer_line()
+        ):
+            return request.redirect("/shop/cart")
+
+        product = line.product_id
+        product_tmpl = product.product_tmpl_id
+        bundle = {}
+        if line.personalizer_design_bundle:
+            try:
+                bundle = json.loads(line.personalizer_design_bundle)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                bundle = {}
+
+        extra = self._empty_canvas_kwargs_from_bundle(bundle, product_tmpl=product_tmpl)
+        if line.empty_canvas_width and line.empty_canvas_height:
+            extra.setdefault("canvas_w", line.empty_canvas_width)
+            extra.setdefault("canvas_h", line.empty_canvas_height)
+            extra.setdefault("canvas_unit", line.empty_canvas_unit or "mm")
+            extra.setdefault("canvas_sides", line.empty_canvas_sides or "front")
+            if line.empty_canvas_preset_id:
+                extra.setdefault("canvas_preset_id", line.empty_canvas_preset_id.id)
+
+        context = self._get_designer_context(product_tmpl.id, product.id, **extra)
+        context.update({
+            "from_cart_edit": True,
+            "sale_order_line": line,
+            "cart_edit_line_id": line.id,
+            "cart_design_bundle_json": line.personalizer_design_bundle or "",
+        })
+        return request.render(
+            "tus_product_personalizer.product_design_customize",
+            context,
         )
 
     @http.route(
@@ -1757,6 +1924,7 @@ class ProductDesigner(http.Controller):
         personalizer_config = self._apply_show_3d_preview(personalizer_config, product_tmpl_id)
         personalizer_config = self._apply_show_texture(personalizer_config, product_tmpl_id)
         personalizer_config = self._apply_show_finish_effects(personalizer_config, product_tmpl_id)
+        personalizer_config = self._apply_pricing_config(personalizer_config, product_tmpl_id)
         show_texture = personalizer_config.get('show_texture')
 
         text_template_groups = self._get_text_template_groups()
@@ -1874,7 +2042,41 @@ class ProductDesigner(http.Controller):
         )
         return True
 
-    def _create_canvas_image_from_svg(self, svg_text, filename, is_vector=False):
+    def _personalizer_upload_limits(self):
+        website = request.env['website'].get_current_website().sudo()
+        if hasattr(website, 'get_personalizer_upload_limits'):
+            return website.get_personalizer_upload_limits()
+        return {
+            "max_bytes": 40 * 1024 * 1024,
+            "max_pixels": 80_000_000,
+            "preview_max_side": 2048,
+        }
+
+    def _store_production_original_attachment(self, file_bytes, filename, mime):
+        """Keep the unmodified production file as ir.attachment."""
+        if not file_bytes:
+            return False
+        return request.env['ir.attachment'].sudo().create({
+            'name': filename or 'production_original',
+            'type': 'binary',
+            'datas': base64.b64encode(file_bytes),
+            'mimetype': mime or 'application/octet-stream',
+            'res_model': 'canvas.image',
+            'public': False,
+        })
+
+    def _create_canvas_image_from_svg(
+        self,
+        svg_text,
+        filename,
+        is_vector=False,
+        *,
+        original_attachment=None,
+        source_width=None,
+        source_height=None,
+        source_dpi=None,
+        preview_scale=1.0,
+    ):
         """Persist SVG text on canvas.image and return a standard payload."""
         from odoo.addons.tus_product_personalizer.utils.svg_embed import (
             parse_embedded_raster_dimensions,
@@ -1882,24 +2084,121 @@ class ProductDesigner(http.Controller):
 
         svg_filename = filename if filename.endswith(".svg") else f"{filename.rsplit('.', 1)[0]}.svg"
         file_b64 = base64.b64encode(svg_text.encode("utf-8"))
-        record = request.env["canvas.image"].sudo().create({
+        vals = {
             "name": svg_filename,
             "file": file_b64,
             "user_id": request.env.user.id,
-        })
+            "preview_scale": float(preview_scale or 1.0),
+        }
+        if original_attachment:
+            vals["original_attachment_id"] = original_attachment.id
+        if source_width:
+            vals["source_width"] = int(source_width)
+        if source_height:
+            vals["source_height"] = int(source_height)
+        if source_dpi:
+            vals["source_dpi"] = float(source_dpi)
+
+        record = request.env["canvas.image"].sudo().create(vals)
+        if original_attachment and not original_attachment.res_id:
+            original_attachment.sudo().write({
+                "res_model": "canvas.image",
+                "res_id": record.id,
+            })
+
         payload = {
             "id": record.id,
             "name": record.name,
             "svg": svg_text,
             "is_vector": bool(is_vector),
             "image_datas": image_data_uri(record.file),
+            "original_attachment_id": record.original_attachment_id.id or False,
+            "preview_scale": float(record.preview_scale or 1.0),
+            "source_dpi": float(record.source_dpi or 0.0) or False,
         }
         if not is_vector:
             dims = parse_embedded_raster_dimensions(svg_text)
             if dims:
-                payload["source_width"] = dims["width"]
-                payload["source_height"] = dims["height"]
+                payload["source_width"] = record.source_width or dims["width"]
+                payload["source_height"] = record.source_height or dims["height"]
+            elif record.source_width and record.source_height:
+                payload["source_width"] = record.source_width
+                payload["source_height"] = record.source_height
+        elif record.source_width and record.source_height:
+            payload["source_width"] = record.source_width
+            payload["source_height"] = record.source_height
         return payload
+
+    def _process_canvas_artwork_upload(
+        self,
+        file_bytes,
+        filename,
+        *,
+        vectorize=None,
+        auto_detect=True,
+    ):
+        """Normalize TIFF/PDF/high-res uploads, store original, build editor SVG."""
+        from odoo.addons.tus_product_personalizer.utils.production_upload import (
+            ProductionUploadError,
+            normalize_production_upload,
+        )
+        from odoo.addons.tus_product_personalizer.utils.svg_embed import (
+            prepare_canvas_image_storage,
+        )
+
+        limits = self._personalizer_upload_limits()
+        try:
+            normalized = normalize_production_upload(
+                file_bytes,
+                filename,
+                max_bytes=limits["max_bytes"],
+                max_pixels=limits["max_pixels"],
+                preview_max_side=limits["preview_max_side"],
+            )
+        except ProductionUploadError as exc:
+            return {"error": str(exc)}
+
+        meta = normalized.get("meta") or {}
+        editor_bytes = normalized["preview_bytes"]
+        editor_name = normalized.get("working_filename") or filename or "upload.png"
+        if meta.get("is_svg"):
+            editor_bytes = normalized["working_bytes"]
+            editor_name = normalized.get("working_filename") or filename
+
+        try:
+            svg_text, svg_filename, is_vector = prepare_canvas_image_storage(
+                editor_bytes,
+                editor_name,
+                vectorize=vectorize,
+                auto_detect=auto_detect,
+            )
+        except Exception as exc:
+            _logger.exception("Canvas image prepare failed")
+            return {"error": str(exc)}
+
+        original_attachment = None
+        keep_original = (
+            (normalized.get("original_mime") in ("image/tiff", "application/pdf"))
+            or float(meta.get("preview_scale") or 1.0) < 0.999
+            or (normalized["original_bytes"] != normalized["preview_bytes"])
+        )
+        if keep_original and not meta.get("is_svg"):
+            original_attachment = self._store_production_original_attachment(
+                normalized["original_bytes"],
+                filename or "production_original",
+                normalized.get("original_mime"),
+            )
+
+        return self._create_canvas_image_from_svg(
+            svg_text,
+            svg_filename,
+            is_vector=is_vector,
+            original_attachment=original_attachment,
+            source_width=meta.get("source_width"),
+            source_height=meta.get("source_height"),
+            source_dpi=meta.get("dpi"),
+            preview_scale=meta.get("preview_scale") or 1.0,
+        )
 
     @http.route('/convert_to_svg', type='http', auth='public', methods=['POST'], csrf=False)
     def convert_to_svg(self, **kwargs):
@@ -1907,8 +2206,10 @@ class ProductDesigner(http.Controller):
         if write_err:
             return request.make_response(write_err.get("error", "read_only"), status=403)
         from odoo.addons.tus_product_personalizer.utils.svg_embed import (
-            prepare_canvas_image_storage,
             RASTER_EXTENSIONS,
+        )
+        from odoo.addons.tus_product_personalizer.utils.production_upload import (
+            PRODUCTION_EXTENSIONS,
         )
 
         upload = request.httprequest.files.get('file')
@@ -1919,14 +2220,11 @@ class ProductDesigner(http.Controller):
         ext = filename.split(".")[-1].lower()
         file_bytes = upload.read()
 
-        if ext in RASTER_EXTENSIONS or ext == "svg":
+        if ext in RASTER_EXTENSIONS or ext == "svg" or ext in PRODUCTION_EXTENSIONS:
             try:
-                svg_text, svg_filename, is_vector = prepare_canvas_image_storage(
-                    file_bytes, filename
-                )
-                payload = self._create_canvas_image_from_svg(
-                    svg_text, svg_filename, is_vector=is_vector
-                )
+                payload = self._process_canvas_artwork_upload(file_bytes, filename)
+                if payload.get("error"):
+                    return request.make_response(payload["error"], status=400)
                 return request.make_json_response(payload)
             except Exception as exc:
                 _logger.exception("Raster/SVG upload conversion failed")
@@ -2082,13 +2380,12 @@ class ProductDesigner(http.Controller):
         filename: string (original file name)
         filedata: base64 string (without the data:image/png;base64, prefix)
         vectorize: True=force trace, False=photo layer, None=auto (default)
+
+        Prefer /canvas/upload_image_multipart for large TIFF/PDF/high-res files.
         """
         write_err = self._require_share_write()
         if write_err:
             return write_err
-        from odoo.addons.tus_product_personalizer.utils.svg_embed import (
-            prepare_canvas_image_storage,
-        )
 
         try:
             file_bytes = base64.b64decode(filedata)
@@ -2101,18 +2398,58 @@ class ProductDesigner(http.Controller):
             auto_detect = bool(auto_detect)
 
         try:
-            svg_text, svg_filename, is_vector = prepare_canvas_image_storage(
+            return self._process_canvas_artwork_upload(
                 file_bytes,
                 filename,
                 vectorize=vectorize,
                 auto_detect=auto_detect,
             )
-            return self._create_canvas_image_from_svg(
-                svg_text, svg_filename, is_vector=is_vector
-            )
         except Exception as exc:
             _logger.exception("Canvas image upload failed")
             return {'error': str(exc)}
+
+    @http.route(
+        '/canvas/upload_image_multipart',
+        type='http',
+        auth='public',
+        methods=['POST'],
+        website=True,
+        csrf=False,
+    )
+    def upload_image_multipart(self, **kwargs):
+        """Multipart upload for large TIFF/PDF/high-resolution artwork."""
+        write_err = self._require_share_write()
+        if write_err:
+            return request.make_json_response(write_err, status=403)
+
+        upload = request.httprequest.files.get('file')
+        if not upload:
+            return request.make_json_response({'error': 'No file uploaded'}, status=400)
+
+        filename = upload.filename or kwargs.get('filename') or 'upload'
+        file_bytes = upload.read()
+        vectorize = kwargs.get('vectorize')
+        auto_detect = kwargs.get('auto_detect', '1')
+        if vectorize in (None, '', 'null'):
+            vectorize = None
+        elif str(vectorize).lower() in ('1', 'true', 'yes'):
+            vectorize = True
+        else:
+            vectorize = False
+        auto_detect = str(auto_detect).lower() not in ('0', 'false', 'no')
+
+        try:
+            payload = self._process_canvas_artwork_upload(
+                file_bytes,
+                filename,
+                vectorize=vectorize,
+                auto_detect=auto_detect,
+            )
+            status = 400 if payload.get('error') else 200
+            return request.make_json_response(payload, status=status)
+        except Exception as exc:
+            _logger.exception("Multipart canvas upload failed")
+            return request.make_json_response({'error': str(exc)}, status=500)
 
     @http.route('/canvas/vectorize_image', type='json', auth='public', website=True, csrf=False)
     def vectorize_canvas_image(self, image_id=None, filedata=None, filename=None):
@@ -2357,6 +2694,17 @@ class ProductDesigner(http.Controller):
             client_texture_price = float(it.get('texture_price') or 0.0)
             if texture_price_sum <= 0 and client_texture_price > 0:
                 texture_price_sum = client_texture_price
+            finish_objects = it.get('finish_objects') or None
+            finish_quote = self._compute_finish_price_sum(
+                product.product_tmpl_id,
+                design_for_pricing,
+                empty_canvas_meta=empty_canvas_meta,
+                finish_objects=finish_objects,
+            )
+            finish_price_sum = float(finish_quote.get('finish_price') or 0.0)
+            client_finish_price = float(it.get('finish_price') or 0.0)
+            if finish_price_sum <= 0 and client_finish_price > 0:
+                finish_price_sum = client_finish_price
             printing_method = PrintingMethod.browse(int(it['printing_method_id'])) \
                 if it.get('printing_method_id') else PrintingMethod
             if not printing_method.exists():
@@ -2369,11 +2717,16 @@ class ProductDesigner(http.Controller):
             printing_unit = self._compute_printing_unit_cost(
                 printing_method, total_order_qty
             )
-            base_unit = self._resolve_line_base_price(product, order=order)
+            area_quote = self._compute_area_base_quote(
+                product.product_tmpl_id, empty_canvas_meta=empty_canvas_meta,
+            )
+            base_unit = self._resolve_line_base_price(
+                product, order=order, empty_canvas_meta=empty_canvas_meta,
+            )
 
             client_price = float(it.get('price') or 0.0)
             if client_price:
-                expected = base_unit + design_price_sum + texture_price_sum + printing_unit
+                expected = base_unit + design_price_sum + texture_price_sum + finish_price_sum + printing_unit
                 if abs(client_price - expected) > 0.05:
                     _logger.info(
                         'Buy now price adjusted for %s: client=%.2f server=%.2f',
@@ -2386,6 +2739,10 @@ class ProductDesigner(http.Controller):
                 'product_uom_qty': qty,
                 'price_unit': base_unit,
                 'name': "Custom Design - " + product.display_name,
+                'personalizer_area_m2': area_quote.get('area_m2') or 0.0,
+                'personalizer_area_rate': area_quote.get('rate_per_m2') or 0.0,
+                'personalizer_area_amount': area_quote.get('amount') or 0.0,
+                'personalizer_finish_amount': finish_price_sum,
             }
             printing_method_id = it.get('printing_method_id')
             if printing_method_id and printing_method.exists():
@@ -2403,6 +2760,11 @@ class ProductDesigner(http.Controller):
                 line.write(canvas_vals)
             if texture_by_side:
                 line.write({'texture_by_side_json': json.dumps(texture_by_side)})
+            design_bundle = it.get('design_bundle')
+            if design_bundle:
+                if not isinstance(design_bundle, str):
+                    design_bundle = json.dumps(design_bundle)
+                line.write({'personalizer_design_bundle': design_bundle})
 
             if design_price_sum > 0:
                 charge_product = self._get_charge_product(
@@ -2416,6 +2778,8 @@ class ProductDesigner(http.Controller):
                         'product_uom_qty': qty,
                         'price_unit': design_price_sum,
                         'name': f"Design Area Charges - {product.name}",
+                        'personalizer_parent_line_id': line.id,
+                        'personalizer_charge_type': 'design_area',
                     })
                 else:
                     _logger.warning(
@@ -2435,11 +2799,34 @@ class ProductDesigner(http.Controller):
                         'product_uom_qty': qty,
                         'price_unit': texture_price_sum,
                         'name': f"Texture Charges - {product.name}",
+                        'personalizer_parent_line_id': line.id,
+                        'personalizer_charge_type': 'texture',
                     })
                 else:
                     _logger.warning(
                         'Texture charge product missing; texture surcharge %.2f not billed for %s',
                         texture_price_sum, product.display_name,
+                    )
+
+            if finish_price_sum > 0:
+                finish_charge_product = self._get_charge_product(
+                    'tus_product_personalizer.product_finish_charge',
+                    'Print Finish Charge',
+                )
+                if finish_charge_product:
+                    self._create_custom_sale_line({
+                        'order_id': order.id,
+                        'product_id': finish_charge_product.id,
+                        'product_uom_qty': qty,
+                        'price_unit': finish_price_sum,
+                        'name': f"Print Finish Charges - {product.name}",
+                        'personalizer_parent_line_id': line.id,
+                        'personalizer_charge_type': 'finish',
+                    })
+                else:
+                    _logger.warning(
+                        'Finish charge product missing; finish surcharge %.2f not billed for %s',
+                        finish_price_sum, product.display_name,
                     )
 
             if vdp_payload:
@@ -2653,6 +3040,7 @@ class ProductDesigner(http.Controller):
         try:
             palette_by_code, uom_by_name, cmyk_by_code = self._get_imprint_lookup_maps()
             last_line = None
+            cart = request.cart
             for it in items:
                 sid = int(it.get('sale_order_line_id'))
                 pid = int(it.get('product_id')) if it.get('product_id') else False
@@ -2661,17 +3049,75 @@ class ProductDesigner(http.Controller):
                 line = request.env['sale.order.line'].sudo().browse(sid)
                 if not line.exists():
                     continue
+                # Website cart edits must belong to the current draft cart.
+                from_cart = bool(it.get('from_cart_edit'))
+                if from_cart:
+                    if not cart or line.order_id.id != cart.id:
+                        return {'error': 'unauthorized', 'success': False}
                 if pid:
                     line.product_id = pid
                 line.uploaded_design_ids.unlink()
+                texture_by_side = it.get('texture_by_side') or {}
                 self._create_line_designs(
                     line, design_data,
                     palette_by_code=palette_by_code,
                     uom_by_name=uom_by_name,
                     cmyk_by_code=cmyk_by_code,
+                    texture_by_side=texture_by_side,
                 )
+                vals = {}
+                design_bundle = it.get('design_bundle')
+                if design_bundle:
+                    vals['personalizer_design_bundle'] = (
+                        design_bundle
+                        if isinstance(design_bundle, str)
+                        else json.dumps(design_bundle)
+                    )
+                empty_canvas_meta = it.get('empty_canvas') or {}
+                if empty_canvas_meta:
+                    area_quote = self._compute_area_base_quote(
+                        line.product_id.product_tmpl_id,
+                        empty_canvas_meta=empty_canvas_meta,
+                    )
+                    if area_quote.get('enabled'):
+                        vals.update({
+                            'price_unit': area_quote.get('amount') or 0.0,
+                            'technical_price_unit': area_quote.get('amount') or 0.0,
+                            'personalizer_area_m2': area_quote.get('area_m2') or 0.0,
+                            'personalizer_area_rate': area_quote.get('rate_per_m2') or 0.0,
+                            'personalizer_area_amount': area_quote.get('amount') or 0.0,
+                        })
+                finish_quote = self._compute_finish_price_sum(
+                    line.product_id.product_tmpl_id,
+                    design_data,
+                    empty_canvas_meta=empty_canvas_meta,
+                    finish_objects=it.get('finish_objects'),
+                )
+                finish_price = float(finish_quote.get('finish_price') or 0.0)
+                vals['personalizer_finish_amount'] = finish_price
+                if vals:
+                    line.write(vals)
+                if from_cart:
+                    design_price = self._compute_design_price_sum(
+                        design_data, line.product_id.product_tmpl_id.id,
+                    )
+                    texture_price = self._compute_texture_price_sum(
+                        texture_by_side,
+                        line.product_id.product_tmpl_id,
+                        empty_canvas_meta=empty_canvas_meta,
+                    )
+                    line._reconcile_personalizer_charge_lines({
+                        'design_area': design_price,
+                        'texture': texture_price,
+                        'finish': finish_price,
+                    })
                 last_line = line
             if last_line and last_line.exists():
+                if any(it.get('from_cart_edit') for it in items):
+                    return {
+                        'redirect_url': '/shop/cart',
+                        'success': True,
+                    }
                 return {
                     'redirect_url': f'/odoo/sales/{last_line.order_id.id}',
                     'success': True,
@@ -2719,7 +3165,25 @@ class ProductDesigner(http.Controller):
                 product_tmpl=product_tmpl,
                 env=request.env,
             ),
+            'pricing': product_tmpl.get_personalizer_pricing_config(),
         }
+
+    @http.route('/tus_personalizer/empty_canvas/quote', type='json', auth='public', website=True, csrf=False)
+    def empty_canvas_quote(self, product_tmpl_id, width=None, height=None, unit='mm', **kw):
+        """Return the authoritative area-based base price for a canvas size."""
+        product_tmpl = request.env['product.template'].sudo().browse(int(product_tmpl_id))
+        if not product_tmpl.exists():
+            return {'error': 'invalid_product'}
+        try:
+            width = float(width)
+            height = float(height)
+        except (TypeError, ValueError):
+            return {'error': 'invalid_dimensions'}
+        quote = self._compute_area_base_quote(
+            product_tmpl,
+            empty_canvas_meta={'width': width, 'height': height, 'unit': unit or 'mm'},
+        )
+        return quote
 
     @http.route('/get_product_views', type='json', auth='public', website=True, csrf=False)
     def get_product_views(self, product_tmpl_id, product_id=None, color_id=None, **kw):

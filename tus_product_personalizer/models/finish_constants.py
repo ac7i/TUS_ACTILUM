@@ -34,12 +34,13 @@ DEFAULT_RELIEF_MM = 0.0
 # Customer-facing texture (emboss) intensity presets. Labels use the European
 # decimal comma to match the client mockup; values are millimetres.
 TEXTURE_INTENSITY_SELECTION = [
+    ("0.2", "0,2 mm"),
     ("0.3", "0,3 mm"),
+    ("0.4", "0,4 mm"),
     ("0.5", "0,5 mm"),
-    ("0.7", "0,7 mm"),
-    ("0.9", "0,9 mm"),
 ]
-DEFAULT_TEXTURE_INTENSITY = "0.5"
+TEXTURE_INTENSITY_VALUES = frozenset(value for value, _label in TEXTURE_INTENSITY_SELECTION)
+DEFAULT_TEXTURE_INTENSITY = "0.3"
 
 # Varnish coverage area modes (client mockup: By image file / All / Zones).
 VARNISH_COVER_MODE_SELECTION = [

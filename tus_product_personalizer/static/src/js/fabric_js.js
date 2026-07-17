@@ -60,6 +60,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
     events: {
         "click .fab_item": "_onChangeOption",
         "click #tus-help-btn": "_onHelpButtonClick",
+        "click .tus-panel-help-btn": "_onPanelHelpButtonClick",
         "click .tus-help-dialog-close": "_onHelpDialogClose",
         "click .tus-help-backdrop": "_onHelpBackdropClick",
         "click .tus-help-copy-link": "_onHelpCopyLink",
@@ -331,6 +332,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         this._bindGuestAccessRefresh();
         if (this.showVdp) {
             this._refreshVdpFieldList();
+        }
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
         }
         this.removeLoader();
     },
@@ -3437,6 +3441,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         if (section) {
             section.offsetHeight;
         }
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
+        }
     },
 
     _getColorTargetFromElement: function (elem) {
@@ -3548,6 +3555,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         if (showPanel) {
             $(".options_content").show();
         }
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
+        }
     },
 
     _restoreSidebarPanel: function () {
@@ -3579,6 +3589,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         $(".options_content").addClass("tus-panel-visible").css("display", "flex");
         if (typeof this._syncMobilePanelState === "function") {
             this._syncMobilePanelState();
+        }
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
         }
     },
 
@@ -4985,8 +4998,16 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 console.warn("Failed to refresh design data for Buy Now:", err);
             }
 
+            let designBundle = null;
+            try {
+                designBundle = await this._collectAllDesignStates([]);
+            } catch (err) {
+                console.warn("Failed to collect design bundle for Buy Now:", err);
+            }
+
             for (const { $el, productId, basePrice, designPrice, texturePrice, qty } of cartLines) {
-                const totalPrice = basePrice + designPrice + texturePrice + printingPerUnit;
+                const finishPrice = this._calculateFinishPrice ? this._calculateFinishPrice() : 0;
+                const totalPrice = basePrice + designPrice + texturePrice + finishPrice + printingPerUnit;
 
                 let design = [];
                 const designAttr = $el.attr("data-design");
@@ -5041,10 +5062,13 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     base_price: basePrice,
                     design_price: designPrice,
                     texture_price: texturePrice,
+                    finish_price: this._calculateFinishPrice ? this._calculateFinishPrice() : 0,
+                    finish_objects: this._getFinishObjectsPayload ? this._getFinishObjectsPayload() : [],
                     texture_by_side: this._getTexturePayloadForCart?.() || {},
                     price: totalPrice,
                     qty: lineQty,
                     design: vdpPayload ? [] : (design || []),
+                    design_bundle: designBundle,
                     printing_method_id: this.selectedPrintingMethod ? this.selectedPrintingMethod.id : null,
                     vdp: vdpPayload,
                     color_id: lineColorId,
@@ -5427,6 +5451,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
     _updateDesignerPriceDisplay: function () {
         const designPrice = this._calculateDesignPrice();
         const texturePrice = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
+        const finishPrice = this._calculateFinishPrice ? this._calculateFinishPrice() : 0;
         const $priceEl = $('.designer-price');
         const basePrice = parseFloat($priceEl.attr('data-base-price')) || parseFloat($priceEl.data('base-price')) || 0;
 
@@ -5437,7 +5462,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             printingCost = setupCost + unitCost;
         }
 
-        const totalPrice = basePrice + designPrice + texturePrice + printingCost;
+        const totalPrice = basePrice + designPrice + texturePrice + finishPrice + printingCost;
 
         // Update top header display
         const $headerVal = $priceEl.find('.oe_currency_value');
@@ -5456,6 +5481,14 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         const $textureRow = this.$sidebar?.find('.texture-total-row');
         if ($textureRow?.length) {
             $textureRow.toggleClass('d-none', !(this.showTexture && texturePrice > 0));
+        }
+        const $finishTotalPrice = this.$sidebar?.find('.finish-total-price');
+        if ($finishTotalPrice?.length) {
+            $finishTotalPrice.text(`${symbol}${finishPrice.toFixed(2)}`);
+        }
+        const $finishRow = this.$sidebar?.find('.finish-total-row');
+        if ($finishRow?.length) {
+            $finishRow.toggleClass('d-none', !(finishPrice > 0));
         }
         if (this.$totalPrice && this.$totalPrice.length) {
             const $sidebarPriceVal = this.$totalPrice.find('.oe_currency_value');
@@ -7112,6 +7145,11 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             sale_order_line_id: sale_order_line_id,
             design: designData,
             product_id: product_id,
+            from_cart_edit: $('input[name="from_cart_edit"]').val() === "1",
+            design_bundle: await this._collectAllDesignStates([]).catch(() => null),
+            finish_objects: this._getFinishObjectsPayload ? this._getFinishObjectsPayload() : [],
+            texture_by_side: this._getTexturePayloadForCart?.() || {},
+            empty_canvas: this._getEmptyCanvasMeta?.(),
         });
 
         // Save to backend
@@ -7121,7 +7159,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             if (result.success) {
                 window.location.href = result.redirect_url;
             } else {
-                self.notification.add("Something Went Wrong", { type: 'danger' });
+                self.notification.add(result.error || "Something Went Wrong", { type: 'danger' });
             }
         });
     },
@@ -7154,3 +7192,40 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 });
 
 registerFabricRefLayout();
+
+export function assertEmbossDoesNotAddLayer(beforeCount, afterCount) {
+    return beforeCount === afterCount;
+}
+
+export function assertFinishControlsForType(objType, panelState) {
+    if (objType === "image") {
+        return !!(panelState.showMaskUpload && panelState.showIntensity && panelState.showVarnish);
+    }
+    return !!(!panelState.showMaskUpload && panelState.showIntensity && panelState.showVarnish);
+}
+
+export function assertHelpContext(panelKey, helpPayload) {
+    const byContext = (helpPayload && helpPayload.by_context) || {};
+    return !!(byContext[panelKey] || byContext.main || helpPayload?.content);
+}
+
+export function assertButtonLabels(labels) {
+    const expected = [
+        "Product",
+        "Add Image",
+        "Add Text",
+        "Add Graphics",
+        "Add Clipart",
+        "Base Texture",
+        "Manage Layers",
+        "Templates",
+    ];
+    return expected.every((label) => labels.includes(label));
+}
+
+export const tusRevision1Checks = {
+    assertEmbossDoesNotAddLayer,
+    assertFinishControlsForType,
+    assertHelpContext,
+    assertButtonLabels,
+};

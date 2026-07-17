@@ -99,6 +99,50 @@ class SaleOrderLine(models.Model):
         copy=True,
         help="Per-side texture metadata selected in the designer.",
     )
+    personalizer_parent_line_id = fields.Many2one(
+        "sale.order.line",
+        string="Personalizer Parent Line",
+        ondelete="cascade",
+        index=True,
+        copy=False,
+        help="Links surcharge lines (design/texture/finish/printing) back to the customized product line.",
+    )
+    personalizer_charge_type = fields.Selection(
+        selection=[
+            ("design_area", "Design Area"),
+            ("texture", "Texture"),
+            ("finish", "Print Finish"),
+            ("printing", "Printing"),
+        ],
+        string="Personalizer Charge Type",
+        copy=False,
+        index=True,
+    )
+    personalizer_area_m2 = fields.Float(
+        string="Calculated Area (m²)",
+        digits=(16, 6),
+        copy=True,
+    )
+    personalizer_area_rate = fields.Float(
+        string="Area Rate (€/m²)",
+        digits="Product Price",
+        copy=True,
+    )
+    personalizer_area_amount = fields.Float(
+        string="Area Amount",
+        digits="Product Price",
+        copy=True,
+    )
+    personalizer_finish_amount = fields.Float(
+        string="Finish Surcharge Amount",
+        digits="Product Price",
+        copy=True,
+    )
+    personalizer_design_bundle = fields.Text(
+        string="Personalizer Design Bundle (JSON)",
+        copy=True,
+        help="Full Fabric design bundle used to reopen Edit / Review Design from the cart.",
+    )
 
     @api.depends(
         "empty_canvas_width",
@@ -180,7 +224,56 @@ class SaleOrderLine(models.Model):
 
     def _is_personalizer_line(self):
         self.ensure_one()
-        return bool(self.uploaded_design_ids or self.empty_canvas_width)
+        return bool(
+            self.uploaded_design_ids
+            or self.empty_canvas_width
+            or self.personalizer_design_bundle
+        )
+
+    def _get_personalizer_edit_url(self):
+        self.ensure_one()
+        if not self._is_personalizer_line() or not self.product_template_id:
+            return False
+        return f"/product/designer/edit/{self.id}"
+
+    def _reconcile_personalizer_charge_lines(self, charge_amounts):
+        """Create/update/remove linked surcharge lines for this parent line."""
+        self.ensure_one()
+        ChargeProductMap = {
+            "design_area": "tus_product_personalizer.product_design_area_charge",
+            "texture": "tus_product_personalizer.product_texture_charge",
+            "finish": "tus_product_personalizer.product_finish_charge",
+            "printing": "tus_product_personalizer.product_printing_charge",
+        }
+        existing = self.search([
+            ("personalizer_parent_line_id", "=", self.id),
+            ("order_id", "=", self.order_id.id),
+        ])
+        for charge_type, amount in (charge_amounts or {}).items():
+            amount = float(amount or 0.0)
+            child = existing.filtered(lambda line: line.personalizer_charge_type == charge_type)[:1]
+            if amount <= 0:
+                if child:
+                    child.unlink()
+                continue
+            xml_id = ChargeProductMap.get(charge_type)
+            product = self.env.ref(xml_id, raise_if_not_found=False) if xml_id else False
+            if not product:
+                continue
+            vals = {
+                "product_id": product.id,
+                "product_uom_qty": self.product_uom_qty,
+                "price_unit": amount,
+                "technical_price_unit": amount,
+                "name": f"{product.display_name} - {self.product_id.display_name}",
+                "personalizer_parent_line_id": self.id,
+                "personalizer_charge_type": charge_type,
+                "order_id": self.order_id.id,
+            }
+            if child:
+                child.write(vals)
+            else:
+                self.create(vals)
 
     def _get_production_sheet_line_data(self):
         self.ensure_one()

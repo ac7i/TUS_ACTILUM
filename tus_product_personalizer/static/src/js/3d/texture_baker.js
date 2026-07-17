@@ -1016,17 +1016,30 @@ export async function bakeMapsForSide(editor, side, options = {}) {
                         ? parseFloat(obj.tusTextureIntensityMm)
                         : REFERENCE_RELIEF_MM;
                 maxReliefMm = Math.max(maxReliefMm, textureRelief);
-                await drawObjectMask(
-                    dispCtx,
-                    fab,
-                    obj,
-                    dest.left,
-                    dest.top,
-                    dest.width,
-                    dest.height,
-                    "emboss",
-                    textureRelief
-                );
+                if (obj.tusTextureFile) {
+                    await drawObjectTextureFile(
+                        dispCtx,
+                        fab,
+                        obj,
+                        dest.left,
+                        dest.top,
+                        dest.width,
+                        dest.height,
+                        obj.tusTextureFile
+                    );
+                } else {
+                    await drawObjectMask(
+                        dispCtx,
+                        fab,
+                        obj,
+                        dest.left,
+                        dest.top,
+                        dest.width,
+                        dest.height,
+                        "emboss",
+                        textureRelief
+                    );
+                }
             }
 
             const effect = obj.tusFinishEffect;

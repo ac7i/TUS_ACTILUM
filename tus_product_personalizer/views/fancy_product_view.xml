@@ -176,6 +176,12 @@
                         <input name="sale_order_line_id" t-att-value="sale_order_line.id" type="hidden" />
                         <input name="order_id" t-att-value="sale_order_line.order_id.id" type="hidden" />
                     </t>
+                    <t t-if="from_cart_edit">
+                        <input name="from_cart_edit" type="hidden" value="1"/>
+                        <input name="sale_order_line_id" t-att-value="cart_edit_line_id or sale_order_line.id" type="hidden"/>
+                        <input name="cart_design_bundle_json" type="hidden"
+                               t-att-value="cart_design_bundle_json or ''"/>
+                    </t>
                     <input name="product_id" t-att-value="product.id" type="hidden" />
                     <input name="current_color_id" t-att-value="current_color_id" type="hidden" />
                     <input type="hidden" name="empty_canvas_mode" t-att-value="empty_canvas_mode and '1' or '0'"/>
@@ -237,6 +243,10 @@
                                 <div class="d-flex justify-content-between texture-total-row d-none">
                                     <span>Texture Total:</span>
                                     <span class="texture-total-price">0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between finish-total-row d-none">
+                                    <span>Finish Total:</span>
+                                    <span class="finish-total-price">0.00</span>
                                 </div>
                                 <div class="d-flex justify-content-between printing-row d-none">
                                     <span class="printing-label">Printing:</span>
@@ -1061,26 +1071,26 @@
                                             design and emboss it. Choose the relief depth below.
                                         </p>
                                         <div t-if="personalizer_config.get('show_finish_texture')" class="tus-finish-texture-block mb-3">
-                                            <div class="control pb-2">
+                                            <div class="control pb-2 tus-finish-image-only">
                                                 <label class="form-label fw-bold d-block">Texture (emboss)</label>
-                                                <button type="button" class="btn btn-primary btn-sm tus-texture-file-btn">Upload photo…</button>
+                                                <button type="button" class="btn btn-primary btn-sm tus-texture-file-btn">Upload emboss mask…</button>
+                                                <button type="button" class="btn btn-link btn-sm tus-texture-file-clear d-none">Clear</button>
                                                 <input type="file" class="d-none tus-texture-file-input"
-                                                       accept="image/png,image/jpeg,image/webp,application/pdf"/>
+                                                       accept="image/png,image/jpeg,image/webp"/>
                                                 <div class="tus-texture-file-name small text-muted mt-1"/>
-                                            </div>
-                                            <div class="control pb-2">
-                                                <label class="form-check-label d-flex align-items-center gap-2">
-                                                    <input type="checkbox" class="form-check-input tus-texture-enable"/>
-                                                    <span>Emboss this layer</span>
-                                                </label>
+                                                <p class="small text-muted mt-1 mb-0">
+                                                    Upload a grayscale mask with the same dimensions and resolution as the selected image.
+                                                    The mask inherits the image transforms automatically.
+                                                </p>
                                             </div>
                                             <div class="control py-2">
-                                                <label class="form-label d-block">Texture intensity</label>
+                                                <label class="form-label d-block">Texture Intensity</label>
                                                 <select class="form-select tus-texture-intensity">
+                                                    <option value="none">None</option>
+                                                    <option value="0.2">0,2 mm</option>
                                                     <option value="0.3">0,3 mm</option>
-                                                    <option value="0.5" selected="selected">0,5 mm</option>
-                                                    <option value="0.7">0,7 mm</option>
-                                                    <option value="0.9">0,9 mm</option>
+                                                    <option value="0.4">0,4 mm</option>
+                                                    <option value="0.5">0,5 mm</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1094,7 +1104,7 @@
                                                 <div class="d-flex gap-3 tus-varnish-type-group" role="radiogroup" aria-label="Varnish type">
                                                     <label class="form-check-label d-flex align-items-center gap-1">
                                                         <input type="radio" class="form-check-input tus-varnish-type" name="tus-varnish-type" value="none" checked="checked"/>
-                                                        <span>No</span>
+                                                        <span>None</span>
                                                     </label>
                                                     <label class="form-check-label d-flex align-items-center gap-1">
                                                         <input type="radio" class="form-check-input tus-varnish-type" name="tus-varnish-type" value="gloss"/>
@@ -1106,35 +1116,7 @@
                                                     </label>
                                                 </div>
                                             </div>
-                                            <div class="control py-2 tus-varnish-area-block">
-                                                <label class="form-label fw-bold d-block">Area to cover</label>
-                                                <p class="small text-muted mb-2">
-                                                    Choose where varnish is applied on the selected layer.
-                                                </p>
-                                                <div class="tus-varnish-cover-group" role="radiogroup" aria-label="Varnish area">
-                                                    <div class="form-check">
-                                                        <input type="radio" class="form-check-input tus-varnish-cover" name="tus-varnish-cover" value="all" id="tus-cover-all" checked="checked"/>
-                                                        <label class="form-check-label" for="tus-cover-all">Entire layer</label>
-                                                    </div>
-                                                    <div class="form-check mt-2">
-                                                        <input type="radio" class="form-check-input tus-varnish-cover" name="tus-varnish-cover" value="by_file" id="tus-cover-by-file"/>
-                                                        <label class="form-check-label" for="tus-cover-by-file">Spot mask file</label>
-                                                    </div>
-                                                    <div class="tus-varnish-file-row mt-1 ms-4">
-                                                        <button type="button" class="btn btn-primary btn-sm tus-varnish-file-btn">Select mask…</button>
-                                                        <button type="button" class="btn btn-link btn-sm tus-varnish-file-clear d-none">Clear</button>
-                                                        <input type="file" class="d-none tus-varnish-file-input"
-                                                               accept="image/png,image/jpeg,image/webp"/>
-                                                        <div class="tus-varnish-file-name small text-muted mt-1"/>
-                                                    </div>
-                                                    <div class="form-check mt-2">
-                                                        <input type="radio" class="form-check-input tus-varnish-cover" name="tus-varnish-cover" value="zones" id="tus-cover-zones"/>
-                                                        <label class="form-check-label" for="tus-cover-zones">Production note</label>
-                                                    </div>
-                                                    <textarea class="form-control mt-1 tus-varnish-zones d-none"
-                                                              rows="3" placeholder="e.g. Spot gloss on logo only, leave border uncoated."/>
-                                                </div>
-                                            </div>
+
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_replace">
@@ -1190,31 +1172,31 @@
                                 <img src="/tus_product_personalizer/static/src/data/img/dashboard_icon-01.svg"
                                     class="fab_icon"
                                 />
-                                <span class="fab_label">Upload</span>
+                                <span class="fab_label">Add Image</span>
                             </div>
                             <div t-if="personalizer_config.get('enable_text', True)" class="fab_item" data-option="text">
                                 <img src="/tus_product_personalizer/static/src/data/img/dashboard_icon-02.svg"
                                      class="fab_icon"
                                 />
-                                <span class="fab_label">Add text</span>
+                                <span class="fab_label">Add Text</span>
                             </div>
                             <div t-if="personalizer_config.get('enable_layers', True)" class="fab_item" data-option="layers">
                                 <img
                                     src="/tus_product_personalizer/static/src/data/img/dashboard_icon-03.svg"
                                     class="fab_icon"
                                 />
-                                <span class="fab_label">Layers</span>
+                                <span class="fab_label">Manage Layers</span>
                             </div>
                             <div t-if="personalizer_config.get('enable_shape', True)" class="fab_item" data-option="shapes">
                                 <img
                                     src="/tus_product_personalizer/static/src/data/img/dashboard_icon-04.svg"
                                     class="fab_icon"
                                 />
-                                <span class="fab_label">Graphics</span>
+                                <span class="fab_label">Add Graphics</span>
                             </div>
                             <div class="fab_item" data-option="clipart">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
-                                <span class="fab_label">Clipart</span>
+                                <span class="fab_label">Add Clipart</span>
                             </div>
                             <div t-if="personalizer_config.get('enable_ai')" class="fab_item" data-option="ai">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;">
@@ -1246,7 +1228,7 @@
                                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                                     <path d="M3 15l5-5 4 4 5-6 4 5"/>
                                 </svg>
-                                <span class="fab_label">Textures</span>
+                                <span class="fab_label">Base Texture</span>
                             </div>
                             </div>
                             <button type="button"
@@ -1262,9 +1244,18 @@
                         <div class="options_content" data-panel-title="">
                             <div class="tus-panel-header">
                                 <h6 class="tus-panel-title mb-0">Tools</h6>
-                                <button type="button" class="tus-btn-icon options-close-btn" aria-label="Close panel">
-                                    <i class="fa fa-times"/>
-                                </button>
+                                <div class="d-flex align-items-center gap-1">
+                                    <button type="button"
+                                            class="tus-btn-icon tus-panel-help-btn"
+                                            t-if="personalizer_config.get('enable_help', True)"
+                                            title="Help"
+                                            aria-label="Help for this panel">
+                                        <i class="fa fa-question-circle" aria-hidden="true"/>
+                                    </button>
+                                    <button type="button" class="tus-btn-icon options-close-btn" aria-label="Close panel">
+                                        <i class="fa fa-times"/>
+                                    </button>
+                                </div>
                             </div>
                             <div t-if="personalizer_config.get('enable_swap', True)" class="section_options section_swap">
                                 <div class="fab_swap_container p-2">
@@ -1372,6 +1363,7 @@
                                             <span class="fab-upload-dpi-hint">Recommended file quality: 150 DPI for sharp print</span>
                                             <span class="fab-upload-format-hint small text-muted d-block mt-1">
                                                 Photos print as photo layers. Simple logos may auto-convert to vector.
+                                                TIFF (first frame) and PDF (first page @ 300 DPI) keep the original for production and use a browser preview in the editor.
                                             </span>
                                             <span class="btn-upload">Browse File</span>
                                             <input
@@ -1379,7 +1371,7 @@
                                                 multiple="multiple"
                                                 class="fab-upload-input"
                                                 name="files"
-                                                accept="image/jpeg,image/png,image/svg+xml,image/jpg,.ai,.eps"
+                                                    accept="image/jpeg,image/png,image/svg+xml,image/jpg,image/tiff,.tif,.tiff,application/pdf,.ai,.eps"
                                             />
                                         </div>
                                         <div class="default_images">
@@ -2110,9 +2102,11 @@
                             </div>
                         </div>
                         <div class="tus-footer-right">
-                            <t t-if="from_backend">
-                                <button type="button" class="tus-save-product-btn save-order-line_btn" id="save-btn" data-sale-oder-line-id="sale_order_line.id">
-                                    Save
+                            <t t-if="from_backend or from_cart_edit">
+                                <button type="button" class="tus-save-product-btn save-order-line_btn" id="save-btn"
+                                        t-att-data-sale-oder-line-id="(sale_order_line and sale_order_line.id) or cart_edit_line_id">
+                                    <t t-if="from_cart_edit">Save to Cart</t>
+                                    <t t-else="">Save</t>
                                 </button>
                             </t>
                             <t t-elif="not share_token or share_is_owner">

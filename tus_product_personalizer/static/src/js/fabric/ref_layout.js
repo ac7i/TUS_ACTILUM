@@ -69,7 +69,6 @@ export function registerFabricRefLayout() {
             "click .tus-texture-file-btn": "_onFinishTextureFileBtn",
             "change .tus-texture-file-input": "_onFinishTextureFileChange",
             "click .tus-texture-file-clear": "_onFinishTextureFileClear",
-            "change .tus-texture-enable": "_onFinishTextureEnableChange",
             "change .tus-texture-intensity": "_onFinishTextureIntensityChange",
             "change .tus-varnish-type": "_onFinishVarnishTypeChange",
             "change .tus-varnish-cover": "_onFinishVarnishCoverChange",
@@ -77,6 +76,7 @@ export function registerFabricRefLayout() {
             "click .tus-varnish-file-clear": "_onFinishVarnishFileClear",
             "change .tus-varnish-file-input": "_onFinishVarnishFileChange",
             "input .tus-varnish-zones": "_onFinishVarnishZonesInput",
+            "click .tus-panel-help-btn": "_onPanelHelpButtonClick",
         }),
 
         start: async function () {
@@ -259,6 +259,7 @@ export function registerFabricRefLayout() {
                 || 0;
             const designPrice = this._calculateDesignPrice ? this._calculateDesignPrice() : 0;
             const texturePrice = this._calculateTexturePrice ? this._calculateTexturePrice() : 0;
+            const finishPrice = this._calculateFinishPrice ? this._calculateFinishPrice() : 0;
             let printingCost = 0;
             let printingLabel = "Printing";
             if (this.selectedPrintingMethod) {
@@ -266,7 +267,7 @@ export function registerFabricRefLayout() {
                     + parseFloat(this.selectedPrintingMethod.unit_cost || 0);
                 printingLabel = this.selectedPrintingMethod.name || printingLabel;
             }
-            const total = basePrice + designPrice + texturePrice + printingCost;
+            const total = basePrice + designPrice + texturePrice + finishPrice + printingCost;
 
             this.$(".tus-footer-pop-base-val").text(fmt(basePrice));
             this.$(".tus-footer-pop-total-val").text(fmt(total));
@@ -401,6 +402,7 @@ export function registerFabricRefLayout() {
             const $content = $(".options_content");
             const hasActiveSection = $content.find(".section_options.active").length > 0;
             $content.attr("data-panel-title", title);
+            $content.attr("data-panel-option", option || "main");
             $content.find(".tus-panel-title").text(title);
             const visible = Boolean(title) || hasActiveSection;
             $content.toggleClass("tus-panel-visible", visible);
@@ -812,11 +814,34 @@ export function registerFabricRefLayout() {
             this._tusZoom = Math.min(200, Math.max(50, pct));
             this.$(".tus-zoom-value").text(`${this._tusZoom}%`);
             const scale = this._tusZoom / 100;
+            // Prefer Fabric viewport zoom over CSS transform so selection
+            // handles stay aligned with the rendered artwork.
             this.$(".main_wrapper .tab-content").css({ transform: "" });
-            this.$(".main_wrapper .tab-content > .tab-pane.active .product-stage").css({
-                transform: `scale(${scale})`,
-                "transform-origin": "center center",
+            this.$(".main_wrapper .tab-content > .tab-pane .product-stage").css({
+                transform: "",
+                "transform-origin": "",
             });
+            for (const side of Object.keys(this.canvasesBySide || {})) {
+                for (const entry of this.canvasesBySide[side] || []) {
+                    const canvas = entry?.canvas;
+                    if (!canvas) {
+                        continue;
+                    }
+                    const center = canvas.getCenter();
+                    const fabricLib = window.fabric;
+                    if (fabricLib?.Point && typeof canvas.zoomToPoint === "function") {
+                        canvas.zoomToPoint(
+                            new fabricLib.Point(center.left, center.top),
+                            scale
+                        );
+                    } else if (typeof canvas.setZoom === "function") {
+                        canvas.setZoom(scale);
+                    }
+                    canvas.calcOffset?.();
+                    canvas.getObjects().forEach((obj) => obj.setCoords?.());
+                    canvas.requestRenderAll();
+                }
+            }
             const activePane = this.$(".main_wrapper .tab-pane.active")[0];
             if (activePane && typeof this._syncPreviewBoxToImage === "function") {
                 this._syncPreviewBoxToImage(activePane);
