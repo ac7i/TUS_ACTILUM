@@ -332,6 +332,14 @@ export const fabricUploadMixin = {
     },
 
     _uploadArtworkViaMultipart: function (file, options) {
+        const self = this;
+        if (file.size > 50 * 1024 * 1024) {
+            self.notification?.add(
+                _t("Large file detected. This may take a few minutes to upload and process. For faster performance, consider exporting as a high-quality PNG or WebP."),
+                { type: "info" }
+            );
+        }
+
         const formData = new FormData();
         formData.append("file", file, file.name);
         if (options && options.vectorize != null) {
@@ -340,24 +348,43 @@ export const fabricUploadMixin = {
         if (options && options.auto_detect != null) {
             formData.append("auto_detect", options.auto_detect ? "1" : "0");
         }
-        return fetch("/canvas/upload_image_multipart", {
-            method: "POST",
-            body: formData,
-            credentials: "same-origin",
-        }).then(async (res) => {
-            let payload = null;
-            try {
-                payload = await res.json();
-            } catch (_err) {
-                payload = null;
-            }
-            if (!res.ok) {
-                const msg =
-                    (payload && payload.error) ||
-                    _t("Upload failed. Check file type, size, and try again.");
-                throw new Error(msg);
-            }
-            return payload || {};
+
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/canvas/upload_image_multipart", true);
+            
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    if (percentComplete < 100) {
+                        self.startLoader?.(_t(`Uploading artwork... ${percentComplete}%`), { light: true });
+                    } else {
+                        self.startLoader?.(_t("Processing artwork on server..."), { light: true });
+                    }
+                }
+            };
+            
+            xhr.onload = () => {
+                let payload = null;
+                try {
+                    payload = JSON.parse(xhr.responseText);
+                } catch (_err) {
+                    payload = null;
+                }
+                
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(payload || {});
+                } else {
+                    const msg = (payload && payload.error) || _t("Upload failed. Check file type, size, and try again.");
+                    reject(new Error(msg));
+                }
+            };
+            
+            xhr.onerror = () => {
+                reject(new Error(_t("Network error occurred during upload.")));
+            };
+            
+            xhr.send(formData);
         });
     },
 

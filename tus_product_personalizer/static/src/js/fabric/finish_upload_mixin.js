@@ -581,7 +581,8 @@ export const fabricFinishUploadMixin = {
                 coverMode === "by_file"
             );
             $panel.find(".tus-varnish-zones")
-                .toggleClass("d-none", coverMode !== "zones" || !isImageLike)
+                .toggleClass("d-none", coverMode !== "zones" || !isImageLike);
+            $panel.find(".tus-varnish-zones-input")
                 .prop("disabled", !varnishActive || !isImageLike)
                 .val(obj?.tusVarnishZonesDescription || "");
         }

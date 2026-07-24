@@ -109,6 +109,10 @@ class OrderImprintDesign(models.Model):
         string="Colors",
         compute="_compute_imprint_summary",
     )
+    has_original_source = fields.Boolean(
+        string="Has Original Source",
+        compute="_compute_has_original_source",
+    )
 
     def _get_selection_label(self, field_name):
         self.ensure_one()
@@ -260,6 +264,67 @@ class OrderImprintDesign(models.Model):
             "url": f"/web/content/{attachment.id}?download=true",
             "target": "self",
         }
+
+    def _get_original_source_attachment(self):
+        self.ensure_one()
+        attrs = self.imprint_design_attribute if isinstance(self.imprint_design_attribute, dict) else {}
+        
+        # Check direct original_attachment_id
+        orig_att_id = attrs.get('original_attachment_id') or attrs.get('originalAttachmentId')
+        if orig_att_id:
+            try:
+                att = self.env['ir.attachment'].sudo().browse(int(orig_att_id))
+                if att.exists():
+                    return att
+            except (ValueError, TypeError):
+                pass
+
+        backend_id = attrs.get('backend_id') or attrs.get('backendId') or attrs.get('image_id')
+        
+        # If attrs is a Fabric group, search inside objects
+        if not backend_id and isinstance(attrs.get('objects'), list):
+            for obj in attrs['objects']:
+                if isinstance(obj, dict):
+                    backend_id = obj.get('backend_id') or obj.get('backendId') or obj.get('image_id')
+                    if backend_id:
+                        break
+                        
+        if backend_id:
+            try:
+                canvas_img = self.env['canvas.image'].sudo().browse(int(backend_id))
+                if canvas_img.exists():
+                    if canvas_img.original_attachment_id:
+                        return canvas_img.original_attachment_id
+                    # Lookup binary attachment on canvas.image (the original uploaded file)
+                    canvas_att = self.env['ir.attachment'].sudo().search([
+                        ('res_model', '=', 'canvas.image'),
+                        ('res_id', '=', canvas_img.id),
+                        ('res_field', '=', 'file'),
+                    ], limit=1)
+                    if canvas_att:
+                        return canvas_att
+            except (ValueError, TypeError):
+                pass
+            
+        return self.env['ir.attachment']
+
+    def action_download_original_source(self):
+        self.ensure_one()
+        attachment = self._get_original_source_attachment()
+        if not attachment:
+            raise UserError(_("No original uploaded source file is available for this element."))
+            
+        return {
+            "type": "ir.actions.act_url",
+            "url": f"/web/content/{attachment.id}?download=true",
+            "target": "self",
+        }
+
+    @api.depends('imprint_design_attribute', 'design_id.uploaded_attachment')
+    def _compute_has_original_source(self):
+        for record in self:
+            attachment = record._get_original_source_attachment()
+            record.has_original_source = bool(attachment)
 
     @api.depends('imprint_design_attribute')
     def _compute_imprint_design_display(self):

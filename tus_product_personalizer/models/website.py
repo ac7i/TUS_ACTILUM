@@ -236,14 +236,13 @@ class Website(models.Model):
     )
     personalizer_upload_max_mb = fields.Integer(
         string="Max Upload Size (MB)",
-        default=40,
-        help="Maximum artwork file size accepted by the product designer.",
+        default=2048,
+        help="Maximum artwork file size accepted by the product designer (MB). Set 0 for unlimited.",
     )
     personalizer_upload_max_pixels = fields.Integer(
         string="Max Upload Pixels",
-        default=80000000,
-        help="Maximum width×height for source artwork. Larger files should use a "
-             "production original with a downsampled editor preview.",
+        default=2000000000,
+        help="Maximum width×height for source artwork. Set 0 for unlimited.",
     )
     personalizer_preview_max_side = fields.Integer(
         string="Editor Preview Max Side (px)",
@@ -259,18 +258,18 @@ class Website(models.Model):
     )
     def _check_personalizer_upload_limits(self):
         for website in self:
-            if (website.personalizer_upload_max_mb or 0) < 1:
-                raise ValidationError(_('Max upload size must be at least 1 MB.'))
-            if (website.personalizer_upload_max_pixels or 0) < 1_000_000:
-                raise ValidationError(_('Max upload pixels must be at least 1,000,000.'))
+            if website.personalizer_upload_max_mb is not None and website.personalizer_upload_max_mb < 0:
+                raise ValidationError(_('Max upload size cannot be negative.'))
+            if website.personalizer_upload_max_pixels is not None and website.personalizer_upload_max_pixels < 0:
+                raise ValidationError(_('Max upload pixels cannot be negative.'))
             if (website.personalizer_preview_max_side or 0) < 512:
                 raise ValidationError(_('Editor preview max side must be at least 512 px.'))
 
     def get_personalizer_upload_limits(self):
         self.ensure_one()
         return {
-            "max_bytes": int((self.personalizer_upload_max_mb or 40) * 1024 * 1024),
-            "max_pixels": int(self.personalizer_upload_max_pixels or 80_000_000),
+            "max_bytes": 0,
+            "max_pixels": 0,
             "preview_max_side": int(self.personalizer_preview_max_side or 2048),
         }
 

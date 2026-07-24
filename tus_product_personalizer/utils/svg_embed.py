@@ -6,6 +6,12 @@ import io
 import logging
 import re
 
+try:
+    from PIL import Image
+    Image.MAX_IMAGE_PIXELS = None
+except ImportError:
+    pass
+
 _logger = logging.getLogger(__name__)
 
 RASTER_EXTENSIONS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "bmp"})

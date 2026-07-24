@@ -148,7 +148,9 @@ class ProductDesigner(http.Controller):
         for side_obj in design or []:
             stage_w = float(side_obj.get('stage_width') or side_obj.get('canvas_width') or 0.0)
             stage_h = float(side_obj.get('stage_height') or side_obj.get('canvas_height') or 0.0)
-            side_meta = side_obj.get('empty_canvas') or meta
+            side_meta = side_obj.get('empty_canvas')
+            if not isinstance(side_meta, dict):
+                side_meta = meta
             side_w = float(side_meta.get('width') or canvas_w or 0.0)
             side_h = float(side_meta.get('height') or canvas_h or 0.0)
             side_unit = side_meta.get('unit') or unit
@@ -2047,8 +2049,8 @@ class ProductDesigner(http.Controller):
         if hasattr(website, 'get_personalizer_upload_limits'):
             return website.get_personalizer_upload_limits()
         return {
-            "max_bytes": 40 * 1024 * 1024,
-            "max_pixels": 80_000_000,
+            "max_bytes": 0,
+            "max_pixels": 0,
             "preview_max_side": 2048,
         }
 
@@ -2415,6 +2417,7 @@ class ProductDesigner(http.Controller):
         methods=['POST'],
         website=True,
         csrf=False,
+        max_content_length=2147483648,
     )
     def upload_image_multipart(self, **kwargs):
         """Multipart upload for large TIFF/PDF/high-resolution artwork."""

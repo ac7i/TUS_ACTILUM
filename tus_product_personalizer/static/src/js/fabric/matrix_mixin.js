@@ -1048,6 +1048,11 @@ export const fabricMatrixMixin = {
             obj.fill,
             this._paletteCmykMap || {}
         );
+        const backendId = obj.backend_id || obj.backendId || obj.image_id ||
+            (Array.isArray(obj.objects) && obj.objects.find(o => o.backend_id || o.backendId || o.image_id)?.backend_id);
+        const origAttId = obj.originalAttachmentId || obj.original_attachment_id ||
+            (Array.isArray(obj.objects) && obj.objects.find(o => o.originalAttachmentId || o.original_attachment_id)?.originalAttachmentId);
+
         return Object.assign(
             {
                 type: obj.type,
@@ -1064,6 +1069,8 @@ export const fabricMatrixMixin = {
                 imprint_cmyk: imprintCmyk || null,
                 element_image: elemImage,
             },
+            backendId ? { backend_id: backendId, backendId: backendId } : {},
+            origAttId ? { original_attachment_id: origAttId, originalAttachmentId: origAttId } : {},
             serializeFinishFields(obj),
             serializeFinishUploadFields(obj),
             actual?.unit ? { unit: actual.unit } : {},

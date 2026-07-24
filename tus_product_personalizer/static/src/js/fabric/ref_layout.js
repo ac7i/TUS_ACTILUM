@@ -75,7 +75,7 @@ export function registerFabricRefLayout() {
             "click .tus-varnish-file-btn": "_onFinishVarnishFileBtn",
             "click .tus-varnish-file-clear": "_onFinishVarnishFileClear",
             "change .tus-varnish-file-input": "_onFinishVarnishFileChange",
-            "input .tus-varnish-zones": "_onFinishVarnishZonesInput",
+            "input .tus-varnish-zones-input": "_onFinishVarnishZonesInput",
             "click .tus-panel-help-btn": "_onPanelHelpButtonClick",
         }),
 

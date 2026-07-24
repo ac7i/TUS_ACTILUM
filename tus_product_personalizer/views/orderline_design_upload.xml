@@ -109,6 +109,7 @@
                                         <field name="imprint_colors" column_invisible="1"/>
                                         <field name="imprint_cmyk" column_invisible="1"/>
                                         <field name="printable_color_id" column_invisible="1"/>
+                                        <field name="has_original_source" column_invisible="1"/>
                                         <button name="action_download_imprint"
                                                 type="object"
                                                 string="PNG"
@@ -118,6 +119,11 @@
                                                 type="object"
                                                 string="SVG"
                                                 icon="fa-download"/>
+                                        <button name="action_download_original_source"
+                                                type="object"
+                                                string="Source"
+                                                icon="fa-download"
+                                                invisible="not has_original_source"/>
                                     </list>
                                     <form string="Imprint Element">
                                         <header>
@@ -129,8 +135,13 @@
                                                     type="object"
                                                     string="Download SVG"
                                                     class="btn-primary"/>
+                                            <button name="action_download_original_source"
+                                                    type="object"
+                                                    string="Download Source"
+                                                    invisible="not has_original_source"/>
                                         </header>
                                         <sheet>
+                                            <field name="has_original_source" invisible="1"/>
                                             <div class="oe_title">
                                                 <h1>
                                                     <field name="element_label" readonly="1"/>

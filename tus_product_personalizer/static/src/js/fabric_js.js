@@ -1453,6 +1453,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             if (activeObj) {
                                 canvas.setActiveObject(activeObj);
                             }
+                            canvas.calcOffset();
                             canvas.requestRenderAll();
                         }
                     }

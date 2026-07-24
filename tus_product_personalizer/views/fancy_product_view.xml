@@ -1115,6 +1115,34 @@
                                                         <span>Satin</span>
                                                     </label>
                                                 </div>
+                                                <div class="tus-varnish-cover-group tus-varnish-area-block mt-3 d-none">
+                                                    <label class="form-label fw-bold d-block">Varnish Area</label>
+                                                    <div class="d-flex gap-3 mb-2" role="radiogroup" aria-label="Varnish area">
+                                                        <label class="form-check-label d-flex align-items-center gap-1">
+                                                            <input type="radio" class="form-check-input tus-varnish-cover" name="tus-varnish-cover" value="all" checked="checked"/>
+                                                            <span>Entire Image</span>
+                                                        </label>
+                                                        <label class="form-check-label d-flex align-items-center gap-1">
+                                                            <input type="radio" class="form-check-input tus-varnish-cover" name="tus-varnish-cover" value="by_file"/>
+                                                            <span>Upload Image</span>
+                                                        </label>
+                                                        <label class="form-check-label d-flex align-items-center gap-1">
+                                                            <input type="radio" class="form-check-input tus-varnish-cover" name="tus-varnish-cover" value="zones"/>
+                                                            <span>Specific Areas</span>
+                                                        </label>
+                                                    </div>
+                                                    <div class="tus-varnish-file-row mt-2">
+                                                        <button type="button" class="btn btn-primary btn-sm tus-varnish-file-btn">Upload varnish mask…</button>
+                                                        <button type="button" class="btn btn-link btn-sm tus-varnish-file-clear d-none">Clear</button>
+                                                        <input type="file" class="d-none tus-varnish-file-input" accept="image/png,image/jpeg,image/webp"/>
+                                                        <div class="tus-varnish-file-name small text-muted mt-1"></div>
+                                                        <p class="small text-muted mt-1 mb-0">Upload a grayscale mask representing where varnish should be applied.</p>
+                                                    </div>
+                                                    <div class="tus-varnish-zones mt-2 d-none">
+                                                        <textarea class="form-control form-control-sm tus-varnish-zones-input" rows="2" placeholder="e.g. Apply varnish to the logo and the bold text only."></textarea>
+                                                        <p class="small text-muted mt-1 mb-0">Describe specifically which parts of the design should have varnish.</p>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                         </div>

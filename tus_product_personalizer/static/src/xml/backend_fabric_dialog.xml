@@ -70,7 +70,7 @@
                             <div class="d-inline-block position-relative opacity-trigger-hover">
                                 <div t-attf-class="d-flex justify-content-between w-100 {{isMobile ? 'o_mobile_controls' : ''}}" aria-atomic="true">
                                     <FileUploader
-                                            acceptedFileExtensions="'image/*'"
+                                            acceptedFileExtensions="'image/*,image/tiff,.tif,.tiff,application/pdf,.ai,.eps'"
                                             t-key="props.record.resId"
                                             onUploaded.bind="onFileUploaded"
                                         >

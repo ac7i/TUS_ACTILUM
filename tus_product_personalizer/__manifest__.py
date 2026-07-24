@@ -38,7 +38,6 @@
         "views/editor_canvas_product_option_views.xml",
         "views/orderline_vdp_views.xml",
         "views/product_personalizer_help_views.xml",
-        "data/help_content_data.xml",
         "views/personalizer_help_page.xml",
         "views/personalizer_menu_items.xml",
         "views/res_config_settings_views.xml",

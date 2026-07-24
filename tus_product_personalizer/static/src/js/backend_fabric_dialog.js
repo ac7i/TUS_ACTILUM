@@ -639,6 +639,7 @@ export class BackendFabricDialog extends Component {
         const r = this.canvasContainer.el.getBoundingClientRect();
         this.canvas.setWidth(r.width);
         this.canvas.setHeight(r.height);
+        this.canvas.calcOffset();
         this.canvas.renderAll();
         for (const area of this.designAreas.values()) {
             const shape = this._getShapeObject(area);
