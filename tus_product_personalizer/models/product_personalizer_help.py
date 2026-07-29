@@ -17,6 +17,21 @@ HELP_CONTEXT_SELECTION = [
     ("finish", "Print Finish"),
     ("vdp", "VDP"),
     ("ai", "AI"),
+    # ── Image child sections ────────────────────────────────────────────────
+    ("image_effects", "Image → Effects"),
+    ("image_remove_bg", "Image → Remove Background"),
+    ("image_vectorize", "Image → Vectorize"),
+    ("image_replace", "Image → Replace Image"),
+    ("image_flip", "Image → Flip"),
+    ("image_opacity", "Image → Opacity"),
+    # ── Text child sections ─────────────────────────────────────────────────
+    ("text_color", "Text → Color / Fill / Shadow"),
+    ("text_edit", "Text → Edit Content"),
+    ("text_size", "Text → Size & Spacing"),
+    ("text_fonts", "Text → Font Family"),
+    ("text_format", "Text → Format & Align"),
+    ("text_transform", "Text → Position & Rotation"),
+    ("text_curved", "Text → Curved Text"),
 ]
 
 

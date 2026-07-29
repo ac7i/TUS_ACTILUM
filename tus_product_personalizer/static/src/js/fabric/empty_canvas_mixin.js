@@ -761,9 +761,10 @@ export const fabricEmptyCanvasMixin = {
         const side = opts.side || this.active_side || "front";
         const canvasBg = this._getEmptyCanvasBackground(side);
 
-        // Render above the on-screen stage size so the 3D texture stays ultra-crisp (3072px HD)
-        // instead of upscaling the low-resolution display canvas.
-        const targetLongest = Math.max(opts.maxSize || 3072, 3072);
+        // Scale bake canvas by device pixel ratio so 4K monitors get a full-res texture (up to 4096px)
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const baseTarget = Math.max(opts.maxSize || 3072, 3072);
+        const targetLongest = Math.min(baseTarget * dpr, 4096);
         const stageLongest = Math.max(stageW, stageH, 1);
         const scale = Math.max(3, targetLongest / stageLongest);
         const outW = Math.max(1, Math.round(stageW * scale));

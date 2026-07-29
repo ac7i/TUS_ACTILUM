@@ -78,7 +78,8 @@ export class TusPBRViewer {
             antialias: true,
             alpha: false,
         });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        // Allow up to 2.5× DPR so 4K monitors (DPR=2) render at full physical resolution
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         // No tone mapping — keep mockup colors identical to the 2D editor composite.
         this.renderer.toneMapping = THREE.NoToneMapping;
@@ -181,10 +182,15 @@ export class TusPBRViewer {
             return;
         }
         const rect = this.containerEl.getBoundingClientRect();
-        const w = Math.max(1, rect.width);
-        const h = Math.max(1, rect.height);
-        this.renderer.setSize(w, h, false);
-        this.camera.aspect = w / h;
+        const cssW = Math.max(1, rect.width);
+        const cssH = Math.max(1, rect.height);
+        // Scale framebuffer to physical pixels so 4K monitors (DPR=2) are fully sharp.
+        // setSize(w, h, false) keeps CSS canvas size unchanged — only the WebGL buffer grows.
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        this.renderer.setSize(Math.round(cssW * dpr), Math.round(cssH * dpr), false);
+        this.canvasEl.style.width = cssW + "px";
+        this.canvasEl.style.height = cssH + "px";
+        this.camera.aspect = cssW / cssH;
         this.camera.updateProjectionMatrix();
     }
 
@@ -475,12 +481,20 @@ export class TusPBRViewer {
         try {
             const isMobile = typeof window !== "undefined"
                 && (window.matchMedia?.("(max-width: 768px)")?.matches || navigator.maxTouchPoints > 1);
-            const mem = navigator.deviceMemory || 4;
-            if (isMobile || mem <= 4) {
+            if (isMobile) {
                 return 256;
+            }
+            const mem = navigator.deviceMemory || 4;
+            const dpr = window.devicePixelRatio || 1;
+            const is4K = dpr >= 2 || (screen && screen.width >= 3840);
+            if (is4K && mem >= 8) {
+                return 512;
             }
             if (mem >= 8) {
                 return 384;
+            }
+            if (mem <= 4) {
+                return 256;
             }
             return 320;
         } catch (_err) {

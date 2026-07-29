@@ -51,6 +51,21 @@ const PANEL_HELP_CONTEXT = {
     finish: "finish",
     vdp: "vdp",
     ai: "ai",
+    // Image child sections
+    image_effects: "image_effects",
+    image_remove_bg: "image_remove_bg",
+    image_vectorize: "image_vectorize",
+    image_replace: "image_replace",
+    image_flip: "image_flip",
+    image_opacity: "image_opacity",
+    // Text child sections
+    text_color: "text_color",
+    text_edit: "text_edit",
+    text_size: "text_size",
+    text_fonts: "text_fonts",
+    text_format: "text_format",
+    text_transform: "text_transform",
+    text_curved: "text_curved",
 };
 
 export const fabricHelpMixin = {
@@ -80,59 +95,58 @@ export const fabricHelpMixin = {
     _getHelpContentForContext: function (contextKey) {
         const help = this._getHelpContent();
         const byContext = help.by_context || {};
-        if (contextKey && byContext[contextKey]) {
-            return byContext[contextKey];
+        const key = contextKey || "main";
+
+        // Strict 1-to-1 match ONLY. Return content ONLY if configured for this exact key.
+        if (byContext[key]) {
+            return byContext[key];
         }
-        if (byContext.main) {
-            return byContext.main;
-        }
+
         return {};
     },
 
     _resolveCurrentHelpContext: function () {
-        // If an object is active on canvas, resolve help context from object type
-        try {
-            const activeCanvas = this._getActiveCanvas ? this._getActiveCanvas() : null;
-            const activeObj = activeCanvas ? activeCanvas.getActiveObject() : null;
-            if (activeObj) {
-                if (activeObj.tusFinishEffect || activeObj.tusVarnishType || activeObj.tusTextureActive) {
-                    return "finish";
-                }
-                const type = activeObj.type;
-                if (type === "i-text" || type === "text" || type === "textbox") {
-                    return "text";
-                }
-                if (type === "image") {
-                    return "image";
-                }
-                if (type === "path" || type === "rect" || type === "circle" || type === "polygon" || type === "triangle" || type === "group") {
-                    return "shapes";
+        // Return active sidebar panel option (e.g. image, text, swap, shapes, clipart, textures, layers, templates, vdp, ai)
+        const activeFab = this.$(".sidebar_options .fab_item.active");
+        if (activeFab.length && activeFab.data("option")) {
+            return String(activeFab.data("option"));
+        }
+
+        const activeSection = this.$(".section_options.active");
+        if (activeSection.length) {
+            const classes = (activeSection.attr("class") || "").split(/\s+/);
+            for (const cls of classes) {
+                if (cls.startsWith("section_") && cls !== "section_options") {
+                    return cls.replace("section_", "");
                 }
             }
-        } catch (_e) {
-            // fallback
         }
-        const panelOption = this.$(".options_content").attr("data-panel-option")
-            || this.$(".fab_item.active").data("option")
-            || this.$(".sidebar_options .fab_item.active").attr("data-option")
-            || "main";
+
+        const panelOption = this.$(".options_content").attr("data-panel-option") || "main";
         return PANEL_HELP_CONTEXT[panelOption] || panelOption || "main";
     },
 
     _syncPanelHelpButton: function () {
         const help = this._getHelpContent();
         const byContext = help.by_context || {};
-        const currentContext = this._resolveCurrentHelpContext();
-        
+        const sidebarContext = this._resolveCurrentHelpContext();
+
         this.$(".tus-panel-help-btn").each((idx, btn) => {
             const $btn = $(btn);
             const explicit = $btn.attr("data-help-context");
-            const contextKey = explicit || currentContext;
-            const hasHelp = Boolean((contextKey && byContext[contextKey]) || byContext["main"]);
+            // If element has explicit data-help-context, test that exact key.
+            // If element has no data-help-context (panel header button), test active sidebar menu context.
+            const contextKey = explicit || sidebarContext;
+
+            const record = contextKey ? byContext[contextKey] : null;
+            const hasHelp = Boolean(record && (record.body || record.video_url || record.name));
+
             $btn.toggleClass("d-none", !hasHelp);
         });
-        
-        const hasMainHelp = Boolean(byContext["main"] && (byContext["main"].body || byContext["main"].video_url || byContext["main"].name));
+
+        // Top-level main help button
+        const mainHelp = byContext["main"] || {};
+        const hasMainHelp = Boolean(mainHelp.body || mainHelp.video_url || mainHelp.name);
         this.$("#tus-help-btn").toggleClass("d-none", !hasMainHelp);
     },
 

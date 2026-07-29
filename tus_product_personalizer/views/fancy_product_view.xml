@@ -673,6 +673,10 @@
                                 <!-- Right Panel -->
                                 <div class="panel">
                                     <div class="section_tools_options section_tool_color active">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Color &amp; Shadow</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_color" title="Help for Color &amp; Shadow"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <ul class="nav" role="tablist">
                                             <li class="nav-item">
                                                 <a class="nav-link active text-muted" data-bs-toggle="tab" href="#fill" role="tab">
@@ -839,6 +843,10 @@
                                     </div>
 
                                     <div class="section_tools_options section_tool_edit">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Edit Text</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_edit" title="Help for Edit Text"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div t-if="show_vdp" class="tus-vdp-inline-hint alert alert-light border-0 small py-2 px-2 mb-2">
                                             <i class="fa fa-info-circle me-1"/>
                                             For different text per mug, open the <strong>Variable</strong> tab → set column name → <strong>Mark</strong>.
@@ -866,6 +874,10 @@
                                     </div>
 
                                     <div class="section_tools_options section_tool_size">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Size &amp; Spacing</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_size" title="Help for Size &amp; Spacing"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div class="panel-content">
                                             <div class="control pb-2">
                                                 <div class="d-flex justify-content-between align-items-center">
@@ -898,6 +910,10 @@
                                     </div>
 
                                     <div class="section_tools_options section_tool_fonts">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Font Family</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_fonts" title="Help for Font Family"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div id="fontList" class="font-list-container">
                                             <ul class="font-list">
                                                 <!-- Sans-serif fonts -->
@@ -962,6 +978,10 @@
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_format">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Format &amp; Align</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_format" title="Help for Format &amp; Align"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div class="d-flex justify-content-between flex-wrap">
                                             <div class="d-flex align-items-center justify-content-center flex-1 font_opt font-bold border bg-grey p-2 px-3 cursor-pointer"
                                                  data-option="fontWeight" data-value="bold">
@@ -985,6 +1005,10 @@
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_transform">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Position &amp; Rotation</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_transform" title="Help for Position &amp; Rotation"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                          <div class="control">
                                              <div class="d-flex justify-content-between align-items-center">
                                                  <div class="d-flex flex-column flex-grow-1">
@@ -996,6 +1020,10 @@
                                          </div>
                                     </div>
                                     <div class="section_tools_options section_tool_curved">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Curved Text</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_curved" title="Help for Curved Text"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <!-- Bend Radius -->
                                         <div class="control py-2">
                                             <div class="d-flex justify-content-between align-items-center">
@@ -1023,6 +1051,10 @@
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_remove_bg">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="tus-section-label small fw-semibold">Remove Background</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_remove_bg" title="Help for Remove Background"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <button type="button" class="btn btn-primary w-100 tus-remove-bg-btn">
                                             <i class="fa fa-magic me-1"/>
                                             Remove background
@@ -1032,6 +1064,10 @@
                                         </p>
                                     </div>
                                     <div class="section_tools_options section_tool_vectorize">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="tus-section-label small fw-semibold">Vectorize</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_vectorize" title="Help for Vectorize"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <button type="button" class="btn btn-primary w-100 tus-vectorize-btn">
                                             <i class="fa fa-object-group me-1"/>
                                             Convert to vector
@@ -1043,6 +1079,10 @@
                                         </p>
                                     </div>
                                     <div class="section_tools_options section_tool_effects">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Effects</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_effects" title="Help for Effects"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div class="control pb-2">
                                             <label class="me-2">Brightness</label>
                                             <input name="brightness" type="range" value="0" min="-1" max="1" step="0.1"
@@ -1066,6 +1106,10 @@
                                     </div>
                                     <div t-if="personalizer_config.get('show_finish_tool')"
                                          class="section_tools_options section_tool_finish">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="tus-section-label small fw-semibold">Print Finish</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="finish" title="Help for Print Finish"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <p class="small text-muted mb-2">
                                             Emboss the selected layer, or upload a photo to add it to the
                                             design and emboss it. Choose the relief depth below.
@@ -1148,6 +1192,10 @@
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_replace">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="tus-section-label small fw-semibold">Replace Image</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_replace" title="Help for Replace Image"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div>
                                             <label for="formFile" class="form-label">Replace Image</label>
                                             <input
@@ -1159,6 +1207,10 @@
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_flip">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Flip</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_flip" title="Help for Flip"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div class="d-flex gap-3 justify-content-center align-items-center">
                                             <div class="flipx px-3 py-1 d-flex justify-content-center align-items-center cursor-pointer bg-grey rounded flex-wrap border">
                                                 <img class="flip-img pe-1" src="/tus_product_personalizer/static/src/data/img/flip_x.png"
@@ -1173,6 +1225,10 @@
                                         </div>
                                     </div>
                                     <div class="section_tools_options section_tool_opacity">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="tus-section-label small fw-semibold">Opacity</span>
+                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_opacity" title="Help for Opacity"><i class="fa fa-question-circle text-muted"/></button>
+                                        </div>
                                         <div class="control">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div class="d-flex flex-column flex-grow-1">
