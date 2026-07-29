@@ -772,6 +772,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             actionHandler: fabric.controlsUtils.rotationWithSnapping,
             render: function (ctx, left, top, _styleOverride, fabricObject) {
                 const btnR = 12;
+                fabricObject.setCoords();
                 const mt = fabricObject.oCoords?.mt;
                 if (!mt) {
                     return;
@@ -1446,14 +1447,19 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             // 7️⃣ Keep all artwork inside the design area after resize
                             canvas.getObjects().forEach((o) => {
                                 this._clampObjectToDesignArea(canvas, o);
+                                o.setCoords();
                             });
                             this._rescaleTextureBackground?.(canvas);
 
                             // 8️⃣ Restore selection after resize (must stay selectable for toolbar)
                             if (activeObj) {
                                 canvas.setActiveObject(activeObj);
+                                activeObj.setCoords();
                             }
                             canvas.calcOffset();
+                            if (activeObj) {
+                                activeObj.setCoords();
+                            }
                             canvas.requestRenderAll();
                         }
                     }

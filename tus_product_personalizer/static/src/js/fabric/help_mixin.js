@@ -90,6 +90,28 @@ export const fabricHelpMixin = {
     },
 
     _resolveCurrentHelpContext: function () {
+        // If an object is active on canvas, resolve help context from object type
+        try {
+            const activeCanvas = this._getActiveCanvas ? this._getActiveCanvas() : null;
+            const activeObj = activeCanvas ? activeCanvas.getActiveObject() : null;
+            if (activeObj) {
+                if (activeObj.tusFinishEffect || activeObj.tusVarnishType || activeObj.tusTextureActive) {
+                    return "finish";
+                }
+                const type = activeObj.type;
+                if (type === "i-text" || type === "text" || type === "textbox") {
+                    return "text";
+                }
+                if (type === "image") {
+                    return "image";
+                }
+                if (type === "path" || type === "rect" || type === "circle" || type === "polygon" || type === "triangle" || type === "group") {
+                    return "shapes";
+                }
+            }
+        } catch (_e) {
+            // fallback
+        }
         const panelOption = this.$(".options_content").attr("data-panel-option")
             || this.$(".fab_item.active").data("option")
             || this.$(".sidebar_options .fab_item.active").attr("data-option")
@@ -100,13 +122,16 @@ export const fabricHelpMixin = {
     _syncPanelHelpButton: function () {
         const help = this._getHelpContent();
         const byContext = help.by_context || {};
-        const contextKey = this._resolveCurrentHelpContext();
+        const currentContext = this._resolveCurrentHelpContext();
         
-        // Only show panel-specific help button if there's help explicitly for this context
-        const hasSpecificHelp = Boolean(contextKey && byContext[contextKey] && (byContext[contextKey].body || byContext[contextKey].video_url || byContext[contextKey].name));
-        this.$(".tus-panel-help-btn").toggleClass("d-none", !hasSpecificHelp);
+        this.$(".tus-panel-help-btn").each((idx, btn) => {
+            const $btn = $(btn);
+            const explicit = $btn.attr("data-help-context");
+            const contextKey = explicit || currentContext;
+            const hasHelp = Boolean((contextKey && byContext[contextKey]) || byContext["main"]);
+            $btn.toggleClass("d-none", !hasHelp);
+        });
         
-        // Only show main help button if there's explicitly "main" help
         const hasMainHelp = Boolean(byContext["main"] && (byContext["main"].body || byContext["main"].video_url || byContext["main"].name));
         this.$("#tus-help-btn").toggleClass("d-none", !hasMainHelp);
     },
@@ -120,7 +145,9 @@ export const fabricHelpMixin = {
     _onPanelHelpButtonClick: function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
-        this._openHelpDialog(this._resolveCurrentHelpContext());
+        const explicit = $(ev.currentTarget).attr("data-help-context");
+        const contextKey = explicit || this._resolveCurrentHelpContext();
+        this._openHelpDialog(contextKey);
     },
 
     _onHelpDialogClose: function (ev) {

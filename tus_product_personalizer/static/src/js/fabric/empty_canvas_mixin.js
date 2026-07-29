@@ -761,11 +761,11 @@ export const fabricEmptyCanvasMixin = {
         const side = opts.side || this.active_side || "front";
         const canvasBg = this._getEmptyCanvasBackground(side);
 
-        // Render above the on-screen stage size so the 3D texture stays crisp
+        // Render above the on-screen stage size so the 3D texture stays ultra-crisp (3072px HD)
         // instead of upscaling the low-resolution display canvas.
-        const targetLongest = opts.maxSize || 2048;
+        const targetLongest = Math.max(opts.maxSize || 3072, 3072);
         const stageLongest = Math.max(stageW, stageH, 1);
-        const scale = Math.max(1, targetLongest / stageLongest);
+        const scale = Math.max(3, targetLongest / stageLongest);
         const outW = Math.max(1, Math.round(stageW * scale));
         const outH = Math.max(1, Math.round(stageH * scale));
 
@@ -799,11 +799,10 @@ export const fabricEmptyCanvasMixin = {
                     layer = null;
                 }
             }
-            if (!layer) {
-                layer = fab.lowerCanvasEl;
-            }
             if (layer && layer.width >= 1 && layer.height >= 1) {
                 ctx.drawImage(layer, 0, 0, outW, outH);
+            } else if (fab.lowerCanvasEl) {
+                ctx.drawImage(fab.lowerCanvasEl, 0, 0, outW, outH);
             }
             if (activeBefore) {
                 fab.setActiveObject(activeBefore);

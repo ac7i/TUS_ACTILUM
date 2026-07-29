@@ -562,6 +562,47 @@ export function registerFabricRefLayout() {
             document.addEventListener("visibilitychange", this._on3DVisibilityChange);
         },
 
+        _show3DLoader: function (container) {
+            if (!container) {
+                return;
+            }
+            let loader = container.querySelector(".tus-3d-loader");
+            if (!loader) {
+                loader = document.createElement("div");
+                loader.className =
+                    "tus-3d-loader d-flex flex-column align-items-center justify-content-center position-absolute top-0 start-0 w-100 h-100";
+                loader.style.backgroundColor = "rgba(15, 23, 42, 0.82)";
+                loader.style.backdropFilter = "blur(6px)";
+                loader.style.zIndex = "999";
+                loader.style.transition = "opacity 0.25s ease";
+                loader.innerHTML = `
+                    <div class="spinner-border text-primary mb-3" style="width: 3.2rem; height: 3.2rem;" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="text-white fw-bold fs-5">Generating 3D Preview...</div>
+                    <div class="text-white-50 small mt-1">Baking HD PBR textures & surface depth</div>
+                `;
+                container.appendChild(loader);
+            }
+            loader.style.display = "flex";
+            loader.style.opacity = "1";
+        },
+
+        _hide3DLoader: function (container) {
+            if (!container) {
+                return;
+            }
+            const loader = container.querySelector(".tus-3d-loader");
+            if (loader) {
+                loader.style.opacity = "0";
+                setTimeout(() => {
+                    if (loader.parentNode) {
+                        loader.remove();
+                    }
+                }, 250);
+            }
+        },
+
         _show3DFallback: function (container, message) {
             let el = container.querySelector(".tus-3d-fallback");
             if (!el) {
@@ -585,6 +626,7 @@ export function registerFabricRefLayout() {
             if (!container) {
                 return;
             }
+            this._show3DLoader(container);
             container.classList.remove("d-none");
             this._setTusPreviewMode(true);
             $(".options_content").removeClass("tus-panel-visible");
@@ -592,74 +634,78 @@ export function registerFabricRefLayout() {
             $(".fabric_container").removeClass("tus-toolbar-open");
 
             try {
-                await this._ensure3DRuntime();
-            } catch (err) {
-                console.error("3D runtime load failed:", err);
-                this._show3DFallback(
-                    container,
-                    "Unable to load 3D preview. Please refresh the page and try again."
-                );
-                return;
-            }
-
-            if (!TusPBRViewer.isWebGLAvailable()) {
-                this._show3DFallback(
-                    container,
-                    "WebGL is not available in this browser. 3D preview requires WebGL support."
-                );
-                return;
-            }
-
-            try {
-                if (!this._pbrViewer) {
-                    this._pbrViewer = new TusPBRViewer(container);
-                    await this._pbrViewer.init();
-                    this._viewerControls = new TusViewerControls(container, {
-                        showVarnish: false,
-                        showRelief: false,
-                        onSettingsChange: (settings) => {
-                            this._3dPreviewSettings = { ...this._3dPreviewSettings, ...settings };
-                            const obj = this._getFinishTargetObject?.();
-                            if (obj) {
-                                if (settings.varnishType !== undefined) {
-                                    obj.tusVarnishType = settings.varnishType;
-                                }
-                                if (settings.reliefMm !== undefined) {
-                                    obj.tusTextureIntensityMm = String(settings.reliefMm);
-                                    obj.tusTextureActive = true;
-                                }
-                                this._syncFinishPanelFromObject?.(obj);
-                            }
-                            this._schedule3DPreviewRefresh();
-                        },
-                        onResetView: () => this._pbrViewer?.resetView(),
-                    });
-                    const activeObj = this._getFinishTargetObject?.();
-                    if (activeObj) {
-                        this._sync3DControlsFromObject(activeObj);
-                    } else if (this._3dPreviewSettings) {
-                        this._viewerControls.setSettings(this._3dPreviewSettings);
-                    }
-                } else {
-                    this._pbrViewer.resume();
+                try {
+                    await this._ensure3DRuntime();
+                } catch (err) {
+                    console.error("3D runtime load failed:", err);
+                    this._show3DFallback(
+                        container,
+                        "Unable to load 3D preview. Please refresh the page and try again."
+                    );
+                    return;
                 }
-                this._clear3DFallback(container);
-            } catch (err) {
-                console.error("3D preview init failed:", err);
-                this._show3DFallback(
-                    container,
-                    "Unable to start 3D preview. Please try again or use Edit mode."
-                );
-                return;
-            }
-            try {
-                await this._refresh3DPreview();
-            } catch (err) {
-                console.error("3D preview refresh failed:", err);
-                this._show3DFallback(
-                    container,
-                    "3D preview could not render the design. Check the browser console or switch back to Edit mode."
-                );
+
+                if (!TusPBRViewer.isWebGLAvailable()) {
+                    this._show3DFallback(
+                        container,
+                        "WebGL is not available in this browser. 3D preview requires WebGL support."
+                    );
+                    return;
+                }
+
+                try {
+                    if (!this._pbrViewer) {
+                        this._pbrViewer = new TusPBRViewer(container);
+                        await this._pbrViewer.init();
+                        this._viewerControls = new TusViewerControls(container, {
+                            showVarnish: false,
+                            showRelief: false,
+                            onSettingsChange: (settings) => {
+                                this._3dPreviewSettings = { ...this._3dPreviewSettings, ...settings };
+                                const obj = this._getFinishTargetObject?.();
+                                if (obj) {
+                                    if (settings.varnishType !== undefined) {
+                                        obj.tusVarnishType = settings.varnishType;
+                                    }
+                                    if (settings.reliefMm !== undefined) {
+                                        obj.tusTextureIntensityMm = String(settings.reliefMm);
+                                        obj.tusTextureActive = true;
+                                    }
+                                    this._syncFinishPanelFromObject?.(obj);
+                                }
+                                this._schedule3DPreviewRefresh();
+                            },
+                            onResetView: () => this._pbrViewer?.resetView(),
+                        });
+                        const activeObj = this._getFinishTargetObject?.();
+                        if (activeObj) {
+                            this._sync3DControlsFromObject(activeObj);
+                        } else if (this._3dPreviewSettings) {
+                            this._viewerControls.setSettings(this._3dPreviewSettings);
+                        }
+                    } else {
+                        this._pbrViewer.resume();
+                    }
+                    this._clear3DFallback(container);
+                } catch (err) {
+                    console.error("3D preview init failed:", err);
+                    this._show3DFallback(
+                        container,
+                        "Unable to start 3D preview. Please try again or use Edit mode."
+                    );
+                    return;
+                }
+                try {
+                    await this._refresh3DPreview();
+                } catch (err) {
+                    console.error("3D preview refresh failed:", err);
+                    this._show3DFallback(
+                        container,
+                        "3D preview could not render the design. Check the browser console or switch back to Edit mode."
+                    );
+                }
+            } finally {
+                this._hide3DLoader(container);
             }
         },
 

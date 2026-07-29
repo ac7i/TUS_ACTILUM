@@ -223,32 +223,48 @@ function generateNormalMapFromHeight(heightCanvas, strength = DEFAULT_NORMAL_STR
     out.width = w;
     out.height = h;
     const dst = out.getContext("2d").createImageData(w, h);
-    const s = Math.max(0.12, strength) * 1.6;
-    const heightThreshold = 10;
+    const s = Math.max(0.12, strength) * 2.0;
+    const data = src.data;
+
+    const sample = (x, y) => {
+        const cx = Math.max(0, Math.min(w - 1, x));
+        const cy = Math.max(0, Math.min(h - 1, y));
+        return data[(cy * w + cx) * 4];
+    };
 
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const di = (y * w + x) * 4;
-            const center = src.data[di];
-            if (center < heightThreshold) {
+            const tl = sample(x - 1, y - 1);
+            const l  = sample(x - 1, y);
+            const bl = sample(x - 1, y + 1);
+            const tr = sample(x + 1, y - 1);
+            const r  = sample(x + 1, y);
+            const br = sample(x + 1, y + 1);
+            const u  = sample(x, y - 1);
+            const d  = sample(x, y + 1);
+
+            if (tl === tr && l === r && bl === br && u === d) {
                 dst.data[di] = 128;
                 dst.data[di + 1] = 128;
                 dst.data[di + 2] = 255;
                 dst.data[di + 3] = 255;
                 continue;
             }
-            const l = x > 0 ? src.data[di - 4] : center;
-            const r = x < w - 1 ? src.data[di + 4] : center;
-            const u = y > 0 ? src.data[di - w * 4] : center;
-            const d = y < h - 1 ? src.data[di + w * 4] : center;
-            let nx = (l - r) / 255 / s;
-            let ny = (u - d) / 255 / s;
+
+            // 3x3 Sobel gradient operator for mathematically smooth curves (O) and diagonals (A, W)
+            const dx = (tr + 2 * r + br) - (tl + 2 * l + bl);
+            const dy = (bl + 2 * d + br) - (tl + 2 * u + tr);
+
+            let nx = -dx / 255 / s;
+            let ny = -dy / 255 / s;
             let nz = 1.0;
             const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-            nx = nx / len;
-            ny = ny / len;
-            nz = nz / len;
-            dst.data[di] = Math.round((nx * 0.5 + 0.5) * 255);
+            nx /= len;
+            ny /= len;
+            nz /= len;
+
+            dst.data[di]     = Math.round((nx * 0.5 + 0.5) * 255);
             dst.data[di + 1] = Math.round((ny * 0.5 + 0.5) * 255);
             dst.data[di + 2] = Math.round((nz * 0.5 + 0.5) * 255);
             dst.data[di + 3] = 255;
@@ -677,7 +693,7 @@ function buildInkMaskImageData(imgData, obj, mode, reliefFactor = 1) {
             obj.type === "textbox" ||
             obj.type === "path"
         ) {
-            shape = Math.min(1, alpha * 1.25);
+            shape = Math.min(1, alpha * 1.5);
         }
 
         let value;
@@ -860,6 +876,8 @@ async function drawObjectMask(ctx, fabricCanvas, obj, destLeft, destTop, destW, 
     mask.getContext("2d").putImageData(buildInkMaskImageData(imgData, obj, mode, reliefFactor), 0, 0);
 
     ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.globalCompositeOperation = mode === "emboss" ? "lighten" : "source-over";
     ctx.drawImage(mask, x, y, w, h);
     ctx.restore();
@@ -1102,8 +1120,9 @@ export async function bakeMapsForSide(editor, side, options = {}) {
         }
     }
 
-    const blurredDisp =
-        displacementBlur > 0 ? blurCanvas(displacementCanvas, displacementBlur) : displacementCanvas;
+    // Scale edge bevel blur to bake canvas resolution so diagonal text strokes (A, W) curve smoothly
+    const scaledBlur = Math.max(1.8, (bakeWidth / 1024) * (displacementBlur || 0.9));
+    const blurredDisp = blurCanvas(displacementCanvas, scaledBlur);
 
     const alphaCanvas = buildAlphaMaskFromColorCanvas(colorCanvas);
     applyAlphaMaskToMap(blurredDisp, alphaCanvas);

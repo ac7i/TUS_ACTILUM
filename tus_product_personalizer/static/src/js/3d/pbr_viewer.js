@@ -23,14 +23,17 @@ function configureColorTexture(THREE, tex, renderer) {
     return tex;
 }
 
-function configureDataTexture(THREE, tex) {
+function configureDataTexture(THREE, tex, renderer) {
     if (THREE.LinearEncoding !== undefined) {
         tex.encoding = THREE.LinearEncoding;
     }
     tex.flipY = true;
-    tex.generateMipmaps = false;
-    tex.minFilter = THREE.LinearFilter;
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
+    if (renderer?.capabilities) {
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    }
     tex.needsUpdate = true;
     return tex;
 }
@@ -91,20 +94,20 @@ export class TusPBRViewer {
         this.productGroup = new THREE.Group();
         this.scene.add(this.productGroup);
 
-        // Neutral white lighting only — colored fill lights shift product hue.
-        const ambient = new THREE.AmbientLight(0xffffff, 0.58);
+        // Professional studio lighting balance: strong directional key light for sharp emboss shadows & highlights
+        const ambient = new THREE.AmbientLight(0xffffff, 0.38);
         this.scene.add(ambient);
 
-        this.keyLight = new THREE.DirectionalLight(0xffffff, 0.42);
-        this.keyLight.position.set(3.0, 2.5, 4.5);
+        this.keyLight = new THREE.DirectionalLight(0xffffff, 0.78);
+        this.keyLight.position.set(2.5, 3.2, 4.0);
         this.scene.add(this.keyLight);
 
-        this.fillLight = new THREE.DirectionalLight(0xffffff, 0.14);
-        this.fillLight.position.set(-2.0, -0.5, 2.0);
+        this.fillLight = new THREE.DirectionalLight(0xffffff, 0.22);
+        this.fillLight.position.set(-2.2, -1.0, 2.5);
         this.scene.add(this.fillLight);
 
-        this.rimLight = new THREE.DirectionalLight(0xffffff, 0.08);
-        this.rimLight.position.set(0, 2.5, -2.0);
+        this.rimLight = new THREE.DirectionalLight(0xffffff, 0.14);
+        this.rimLight.position.set(0, 3.0, -2.5);
         this.scene.add(this.rimLight);
 
         this._defaultLightIntensities = {
@@ -265,9 +268,9 @@ export class TusPBRViewer {
         if (maps.alphaCanvas) {
             alphaTex = canvasToTexture(THREE, maps.alphaCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: false,
+                generateMipmaps: true,
             });
-            configureDataTexture(THREE, alphaTex);
+            configureDataTexture(THREE, alphaTex, this.renderer);
             alphaTex.wrapS = alphaTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(alphaTex);
         }
@@ -289,17 +292,17 @@ export class TusPBRViewer {
         if (hasEmboss) {
             dispTex = canvasToTexture(THREE, maps.displacementCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: false,
+                generateMipmaps: true,
             });
-            configureDataTexture(THREE, dispTex);
+            configureDataTexture(THREE, dispTex, this.renderer);
             dispTex.wrapS = dispTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(dispTex);
 
             normalTex = canvasToTexture(THREE, maps.normalCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: false,
+                generateMipmaps: true,
             });
-            configureDataTexture(THREE, normalTex);
+            configureDataTexture(THREE, normalTex, this.renderer);
             normalTex.wrapS = normalTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(normalTex);
         }
@@ -308,9 +311,9 @@ export class TusPBRViewer {
         if ((hasVarnish && varnishType !== "none") || hasFoil) {
             roughTex = canvasToTexture(THREE, maps.roughnessCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: false,
+                generateMipmaps: true,
             });
-            configureDataTexture(THREE, roughTex);
+            configureDataTexture(THREE, roughTex, this.renderer);
             roughTex.wrapS = roughTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(roughTex);
         }
@@ -319,9 +322,9 @@ export class TusPBRViewer {
         if (hasVarnish && maps.clearcoatCanvas) {
             clearcoatTex = canvasToTexture(THREE, maps.clearcoatCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: false,
+                generateMipmaps: true,
             });
-            configureDataTexture(THREE, clearcoatTex);
+            configureDataTexture(THREE, clearcoatTex, this.renderer);
             clearcoatTex.wrapS = clearcoatTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(clearcoatTex);
         }
@@ -330,9 +333,9 @@ export class TusPBRViewer {
         if (hasFoil && maps.foilMetalnessCanvas) {
             metalTex = canvasToTexture(THREE, maps.foilMetalnessCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: false,
+                generateMipmaps: true,
             });
-            configureDataTexture(THREE, metalTex);
+            configureDataTexture(THREE, metalTex, this.renderer);
             metalTex.wrapS = metalTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(metalTex);
         }
@@ -353,22 +356,30 @@ export class TusPBRViewer {
         }
         const reliefScale = reliefMmToDisplacementScale(reliefMm);
 
-        // Keep diffuse map for visibility/alpha; boost emissive so PBR lights do not wash out color.
+        // Keep diffuse map for visibility; only use emissive for metallic foil reflections
         material.map = colorTex;
-        material.emissiveMap = colorTex;
-        material.emissive.setHex(0xffffff);
-        material.emissiveIntensity = pbr.foilEmissiveIntensity;
+        if (hasFoil) {
+            material.emissiveMap = colorTex;
+            material.emissive.setHex(0xffffff);
+            material.emissiveIntensity = pbr.foilEmissiveIntensity || 0.12;
+        } else {
+            material.emissiveMap = null;
+            material.emissive.setHex(0x000000);
+            material.emissiveIntensity = 0.0;
+        }
         material.displacementMap = dispTex;
-        material.displacementScale = reliefScale;
+        // Clamp physical vertex offset to avoid geometry tearing/waves at high relief values
+        material.displacementScale = Math.min(0.045, reliefScale);
         material.displacementBias = 0;
         material.normalMap = normalTex;
         material.normalScale = new THREE.Vector2(
-            hasEmboss ? pbr.normalStrength : 1,
-            hasEmboss ? pbr.normalStrength : 1
+            hasEmboss ? pbr.normalStrength * 1.8 : 1,
+            hasEmboss ? pbr.normalStrength * 1.8 : 1
         );
-        // Roughness map already encodes matte substrate vs coated regions — do not
-        // multiply by a low uniform roughness (that would gloss the whole plane).
-        material.roughness = 1.0;
+        material.bumpMap = dispTex || normalTex;
+        material.bumpScale = hasEmboss ? Math.max(0.005, reliefScale * 0.4) : 0.001;
+        // Paper cardstock roughness: 0.78 for natural light response
+        material.roughness = hasVarnish ? pbr.baseRoughness : 0.78;
         material.roughnessMap = roughTex;
         material.metalnessMap = metalTex;
         material.metalness = hasFoil ? pbr.foilMetalness : 0.0;
