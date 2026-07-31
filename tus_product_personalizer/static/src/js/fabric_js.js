@@ -1421,16 +1421,6 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             // 3️⃣ Update dimensions
                             canvas.setDimensions({ width: newW, height: newH });
 
-                            // 3.5️⃣ DPR backstore: on 4K/Retina (devicePixelRatio≥2) scale the internal
-                            // pixel buffer to physical pixels so hit-tests and handle positions are exact.
-                            const _dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-                            if (_dpr > 1) {
-                                canvas.setDimensions(
-                                    { width: Math.round(newW * _dpr), height: Math.round(newH * _dpr) },
-                                    { backstoreOnly: true }
-                                );
-                            }
-
                             // 3.5️⃣ Update center guide positions after canvas resize
                             if (canvas._updateCenterGuidePositions) {
                                 canvas._updateCenterGuidePositions();

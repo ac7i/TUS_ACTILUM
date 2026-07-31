@@ -11,6 +11,7 @@ function getTHREE() {
 }
 
 function configureColorTexture(THREE, tex, renderer) {
+    if (!tex) return tex;
     tex.encoding = THREE.sRGBEncoding;
     tex.flipY = true;
     tex.generateMipmaps = true;
@@ -24,6 +25,7 @@ function configureColorTexture(THREE, tex, renderer) {
 }
 
 function configureDataTexture(THREE, tex, renderer) {
+    if (!tex) return tex;
     if (THREE.LinearEncoding !== undefined) {
         tex.encoding = THREE.LinearEncoding;
     }
@@ -184,12 +186,9 @@ export class TusPBRViewer {
         const rect = this.containerEl.getBoundingClientRect();
         const cssW = Math.max(1, rect.width);
         const cssH = Math.max(1, rect.height);
-        // Scale framebuffer to physical pixels so 4K monitors (DPR=2) are fully sharp.
-        // setSize(w, h, false) keeps CSS canvas size unchanged — only the WebGL buffer grows.
         const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-        this.renderer.setSize(Math.round(cssW * dpr), Math.round(cssH * dpr), false);
-        this.canvasEl.style.width = cssW + "px";
-        this.canvasEl.style.height = cssH + "px";
+        this.renderer.setPixelRatio(dpr);
+        this.renderer.setSize(cssW, cssH, true);
         this.camera.aspect = cssW / cssH;
         this.camera.updateProjectionMatrix();
     }

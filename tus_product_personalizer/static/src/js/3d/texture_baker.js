@@ -1262,7 +1262,8 @@ export function canvasToTexture(THREE, canvas, options = {}) {
     tex.generateMipmaps = options.generateMipmaps !== false;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
-    tex.anisotropy = options.anisotropy || 1;
+    const maxAniso = options.renderer?.capabilities?.getMaxAnisotropy?.() || 16;
+    tex.anisotropy = options.anisotropy || maxAniso;
     if (options.colorSpace === "srgb" && THREE.sRGBEncoding !== undefined) {
         tex.encoding = THREE.sRGBEncoding;
     } else if (options.colorSpace === "linear" && THREE.LinearEncoding !== undefined) {
