@@ -1221,8 +1221,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             wrapper.style.position = 'absolute';
             wrapper.style.left = `${layout.left}px`;
             wrapper.style.top = `${layout.top}px`;
-            wrapper.style.width = `${layout.width}px`;
-            wrapper.style.height = `${layout.height}px`;
+            // Use integer canvas px so CSS size === Fabric backstore (avoids 4K handle offset).
+            wrapper.style.width = `${layout.canvasW}px`;
+            wrapper.style.height = `${layout.canvasH}px`;
             wrapper.style.boxSizing = 'border-box';
 
             const canvas = document.createElement('canvas');
@@ -1234,8 +1235,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             canvas.style.position = 'absolute';
             canvas.style.left = '0px';
             canvas.style.top = '0px';
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
+            canvas.style.width = `${canvasW}px`;
+            canvas.style.height = `${canvasH}px`;
 
             wrapper.appendChild(canvas);
             container.appendChild(wrapper);
@@ -1243,7 +1244,17 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             const fabricCanvas = new fabric.Canvas(canvas, {
                 preserveObjectStacking: true,
                 selection: true,
+                allowTouchScrolling: true,
+                // 4K/HiDPI FIX: Disable Fabric's built-in retina scaling.
+                // With enableRetinaScaling:true (default), Fabric doubles the backing
+                // store on DPR=2 screens, but pointer events stay in CSS-pixel space.
+                // This causes ALL object handles and click targets to land at 2× the
+                // correct position — exactly the "scattered handles" bug the client sees.
+                // We manage canvas resolution ourselves via setDimensions().
+                enableRetinaScaling: false,
             });
+            // Recalibrate Fabric's internal pointer-coordinate origin after DOM insertion.
+            fabricCanvas.calcOffset();
 
             this._applyDesignAreaGeometry(fabricCanvas, wrapper, area, layout);
 
@@ -1353,8 +1364,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
                     wrapper.style.left = `${layout.left}px`;
                     wrapper.style.top = `${layout.top}px`;
-                    wrapper.style.width = `${layout.width}px`;
-                    wrapper.style.height = `${layout.height}px`;
+                    wrapper.style.width = `${layout.canvasW}px`;
+                    wrapper.style.height = `${layout.canvasH}px`;
 
                     const canvas = this.fabricByAreaId[area.id];
                     if (canvas) {
@@ -1382,6 +1393,13 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                                 canvas._lastW = newW;
                                 canvas._lastH = newH;
                             }
+                            // 4K/HiDPI FIX: Even when size is unchanged, the canvas wrapper
+                            // may have MOVED (e.g. sidebar open/close, page scroll).
+                            // Always recalibrate so pointer events stay accurate.
+                            canvas.calcOffset();
+                            // Refresh all object bounding boxes so control handles
+                            // are drawn at the correct positions after any layout shift.
+                            canvas.getObjects().forEach((o) => o.setCoords());
                         } else {
                             this._applyDesignAreaGeometry(canvas, wrapper, area, layout);
 
@@ -1418,8 +1436,20 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                                 });
                             }
 
-                            // 3️⃣ Update dimensions
+                            // 3️⃣ Update dimensions (keeps CSS + backstore in sync; never wipe .width attrs)
                             canvas.setDimensions({ width: newW, height: newH });
+                            if (canvas.lowerCanvasEl) {
+                                canvas.lowerCanvasEl.style.width = `${newW}px`;
+                                canvas.lowerCanvasEl.style.height = `${newH}px`;
+                            }
+                            if (canvas.upperCanvasEl) {
+                                canvas.upperCanvasEl.style.width = `${newW}px`;
+                                canvas.upperCanvasEl.style.height = `${newH}px`;
+                            }
+                            if (canvas.wrapperEl) {
+                                canvas.wrapperEl.style.width = `${newW}px`;
+                                canvas.wrapperEl.style.height = `${newH}px`;
+                            }
 
                             // 3.5️⃣ Update center guide positions after canvas resize
                             if (canvas._updateCenterGuidePositions) {
@@ -1428,6 +1458,12 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
                             // 4️⃣ Reset viewport transform to avoid thin blue line
                             canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+                            // 4.5️⃣ 4K/HiDPI FIX: Recalibrate Fabric's pointer coordinate origin.
+                            // setDimensions() changes the canvas element size, which shifts the
+                            // DOM offset. calcOffset() re-reads offsetLeft/offsetTop so that
+                            // mouse/touch events land exactly where the user clicked on 4K displays.
+                            canvas.calcOffset();
 
                             // 5️⃣ Reset canvas element positioning
                             canvas.lowerCanvasEl.style.left = "0px";
@@ -1550,8 +1586,13 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         if (!img || !box || !container) {
             return;
         }
-        const w = img.offsetWidth;
-        const h = img.offsetHeight;
+        // 4K/HiDPI FIX: Use getBoundingClientRect() for sub-pixel accurate size.
+        // img.offsetWidth rounds to integer CSS pixels, which can be off by 1-2px
+        // on high-DPR displays (Windows 150-200% scaling), causing a misalignment
+        // between the preview box and the design-area overlays.
+        const imgBCR = img.getBoundingClientRect();
+        const w = imgBCR.width || img.offsetWidth;
+        const h = imgBCR.height || img.offsetHeight;
         if (w < 2 || h < 2) {
             return;
         }
@@ -1629,6 +1670,17 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 return;
             }
             this.restructureCanvas({ preserveSelection: true });
+            // 4K/HiDPI FIX: After restructure, recalibrate all canvas pointer offsets.
+            // On high-DPR displays, the OS can trigger resize events when the user
+            // changes scaling (e.g. 100% → 150%). calcOffset() ensures Fabric's
+            // internal mouse-to-canvas mapping stays accurate after any such change.
+            requestAnimationFrame(() => {
+                Object.values(this.fabricByAreaId || {}).forEach((fab) => {
+                    if (fab && typeof fab.calcOffset === "function") {
+                        fab.calcOffset();
+                    }
+                });
+            });
         }, 80);
         this._canvasLayoutObservers = [];
         const observeTargets = this.emptyCanvasMode

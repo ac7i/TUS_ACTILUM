@@ -15,12 +15,18 @@
     }
 
     .main_wrapper .image_preview_box.tus-empty-canvas-stage {
-        border: 1px solid #d1d5db;
+        // Use outline instead of border: outline renders outside the box so the
+        // absolutely-positioned canvas_container (inset: 0) never covers it.
+        // With border + box-sizing:border-box the 1px border is inside the declared
+        // width/height, causing the canvas to clip the right and bottom border edges.
+        outline: 1px solid #d1d5db;
+        outline-offset: 0;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
         overflow: hidden;
         display: block !important;
-        width: auto !important;
-        height: auto !important;
+        // Width/height come from JS as explicit px so Fabric lower+upper canvases match.
+        // Do not force auto — that desyncs CSS size from Fabric logical size on 4K.
+        max-width: none !important;
         max-height: none !important;
         flex: 0 0 auto;
         box-sizing: border-box;
@@ -46,18 +52,14 @@
     }
 
     .design-area.tus-empty-canvas-area {
-        inset: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
+        // Position/size set in JS to exact Fabric CSS pixels (not inset/100%).
         margin: 0 !important;
         padding: 0 !important;
         outline: 1px dashed rgba(17, 24, 39, 0.2);
         outline-offset: -1px;
 
-        .canvas-container {
-            width: 100% !important;
-            height: 100% !important;
-        }
+        // Let Fabric/JS set matching px on .canvas-container + lower/upper canvases.
+        // Forcing 100% here stretched artwork while selection handles stayed absolute.
 
         .tus-empty-canvas-printable-guide {
             position: absolute;

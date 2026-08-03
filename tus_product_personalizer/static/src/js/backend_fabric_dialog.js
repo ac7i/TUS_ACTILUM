@@ -58,7 +58,17 @@ export class BackendFabricDialog extends Component {
         })
         onMounted(() => {
             this.createCanvas()
-            this.canvas = new fabric.Canvas("CanvasDesign");
+            this.canvas = new fabric.Canvas("CanvasDesign", {
+                // 4K/HiDPI FIX: Disable Fabric's built-in retina scaling.
+                // With the default (enableRetinaScaling:true), Fabric doubles the canvas
+                // backing store on DPR=2 screens (4K monitors). Pointer events still arrive
+                // in CSS-pixel space, so every click, drag, and polygon point lands at
+                // 2× the correct position — exactly what the diagnostic confirmed.
+                enableRetinaScaling: false,
+                allowTouchScrolling: true,
+                selection: true,
+            });
+            this.canvas.calcOffset(); // Calibrate pointer origin after DOM insertion.
 
             fabric.Object.prototype.controls.mtr.visible = false;
 

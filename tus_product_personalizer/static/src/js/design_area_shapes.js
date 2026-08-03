@@ -60,14 +60,16 @@ export function getAreaDisplayLayout(area, stage, imgRect, offsetX, offsetY) {
     const heightRatio = imgRect.height / stageH;
 
     if (a.shape === "polygon") {
+        const canvasW = Math.max(1, Math.round(imgRect.width));
+        const canvasH = Math.max(1, Math.round(imgRect.height));
         return {
             mode: "polygon",
             left: offsetX,
             top: offsetY,
-            width: imgRect.width,
-            height: imgRect.height,
-            canvasW: Math.max(1, Math.round(imgRect.width)),
-            canvasH: Math.max(1, Math.round(imgRect.height)),
+            width: canvasW,
+            height: canvasH,
+            canvasW,
+            canvasH,
             widthRatio,
             heightRatio,
             stageW,
@@ -76,14 +78,16 @@ export function getAreaDisplayLayout(area, stage, imgRect, offsetX, offsetY) {
     }
 
     const bbox = areaBounds(a, stage);
+    const canvasW = Math.max(1, Math.round(widthRatio * bbox.width));
+    const canvasH = Math.max(1, Math.round(heightRatio * bbox.height));
     return {
         mode: "rect",
         left: offsetX + widthRatio * bbox.left,
         top: offsetY + heightRatio * bbox.top,
-        width: widthRatio * bbox.width,
-        height: heightRatio * bbox.height,
-        canvasW: Math.max(1, Math.round(widthRatio * bbox.width)),
-        canvasH: Math.max(1, Math.round(heightRatio * bbox.height)),
+        width: canvasW,
+        height: canvasH,
+        canvasW,
+        canvasH,
         widthRatio,
         heightRatio,
         stageW,

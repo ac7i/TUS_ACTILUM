@@ -423,10 +423,17 @@ export const fabricEmptyCanvasMixin = {
         return printableLabel ? `${sheetLabel} · ${printableLabel}` : sheetLabel;
     },
 
-    _computeEmptyCanvasDisplaySize(stageW, stageH) {
+    _computeEmptyCanvasDisplaySize(stageW, stageH, box) {
         const sw = stageW || 394;
         const sh = stageH || 394;
-        const maxW = Math.min(720, Math.max(320, window.innerWidth * 0.72));
+        // Prefer the stage's actual parent width so Fabric logical size matches on-screen
+        // CSS pixels (critical on 4K when sidebars shrink the preview column).
+        const parent = box?.parentElement;
+        const parentW = parent?.clientWidth || 0;
+        const availableW = parentW > 0
+            ? Math.max(280, parentW - 16)
+            : Math.max(320, window.innerWidth * 0.72);
+        const maxW = Math.min(720, availableW);
         const maxH = Math.max(280, window.innerHeight * 0.52);
         let displayW = maxW;
         let displayH = (sh / sw) * displayW;
@@ -442,15 +449,52 @@ export const fabricEmptyCanvasMixin = {
         };
     },
 
+    /**
+     * Keep Fabric lower/upper canvases + wrapper on identical explicit CSS pixel sizes.
+     * Stretching only the lower canvas to 100% while the upper (handles) stays at Fabric's
+     * absolute px size is the 4K selection-handle offset bug.
+     */
+    _syncEmptyCanvasFabricSurface(canvas, width, height) {
+        if (!canvas) {
+            return;
+        }
+        const w = Math.max(1, Math.round(width));
+        const h = Math.max(1, Math.round(height));
+        if (typeof canvas.setDimensions === "function") {
+            canvas.setDimensions({ width: w, height: h });
+        } else {
+            canvas.setWidth?.(w);
+            canvas.setHeight?.(h);
+        }
+        const pxW = `${w}px`;
+        const pxH = `${h}px`;
+        if (canvas.wrapperEl) {
+            canvas.wrapperEl.style.width = pxW;
+            canvas.wrapperEl.style.height = pxH;
+            canvas.wrapperEl.style.overflow = "hidden";
+        }
+        [canvas.lowerCanvasEl, canvas.upperCanvasEl].forEach((el) => {
+            if (!el) {
+                return;
+            }
+            el.style.width = pxW;
+            el.style.height = pxH;
+            el.style.left = "0px";
+            el.style.top = "0px";
+        });
+        canvas.calcOffset?.();
+    },
+
     _applyEmptyCanvasBoxLayout(box, container, stageW, stageH, side) {
-        const { displayW, displayH } = this._computeEmptyCanvasDisplaySize(stageW, stageH);
+        const { displayW, displayH } = this._computeEmptyCanvasDisplaySize(stageW, stageH, box);
         const bgColor = this._getEmptyCanvasBackground(side);
         box.style.boxSizing = "border-box";
-        box.style.width = `${displayW}px`;
-        box.style.height = `${displayH}px`;
+        // Beat SCSS `width/height: auto !important` so stage CSS size === Fabric logical size.
+        box.style.setProperty("width", `${displayW}px`, "important");
+        box.style.setProperty("height", `${displayH}px`, "important");
         box.style.minWidth = `${displayW}px`;
         box.style.minHeight = `${displayH}px`;
-        box.style.maxWidth = "100%";
+        box.style.maxWidth = "none";
         box.style.maxHeight = "none";
         box.style.flex = "0 0 auto";
         box.style.background = bgColor;
@@ -469,31 +513,38 @@ export const fabricEmptyCanvasMixin = {
             img.style.setProperty("height", "0", "important");
             img.style.setProperty("max-height", "0", "important");
         }
+        return { displayW, displayH };
     },
 
     _applyEmptyCanvasAreaLayout(wrapper, layout) {
+        const w = Math.max(1, Math.round(layout?.canvasW || layout?.width || 0));
+        const h = Math.max(1, Math.round(layout?.canvasH || layout?.height || 0));
+        const pxW = `${w}px`;
+        const pxH = `${h}px`;
         wrapper.style.left = "0";
         wrapper.style.top = "0";
-        wrapper.style.right = "0";
-        wrapper.style.bottom = "0";
-        wrapper.style.width = "100%";
-        wrapper.style.height = "100%";
-        wrapper.style.inset = "0";
+        wrapper.style.right = "auto";
+        wrapper.style.bottom = "auto";
+        wrapper.style.inset = "auto";
+        wrapper.style.width = pxW;
+        wrapper.style.height = pxH;
         wrapper.style.margin = "0";
         wrapper.style.padding = "0";
         const fabricContainer = wrapper.querySelector(".canvas-container");
         if (fabricContainer) {
-            fabricContainer.style.width = "100%";
-            fabricContainer.style.height = "100%";
+            fabricContainer.style.width = pxW;
+            fabricContainer.style.height = pxH;
         }
-        const canvasEl = wrapper.querySelector("canvas.design-area-canvas");
-        if (canvasEl) {
-            canvasEl.style.width = "100%";
-            canvasEl.style.height = "100%";
-        }
+        // Sync every Fabric layer (lower artwork + upper controls), not just the design canvas.
+        wrapper.querySelectorAll("canvas").forEach((el) => {
+            el.style.width = pxW;
+            el.style.height = pxH;
+            el.style.left = "0px";
+            el.style.top = "0px";
+        });
         if (layout) {
-            wrapper.dataset.layoutW = String(layout.canvasW);
-            wrapper.dataset.layoutH = String(layout.canvasH);
+            wrapper.dataset.layoutW = String(w);
+            wrapper.dataset.layoutH = String(h);
         }
     },
 
@@ -509,7 +560,7 @@ export const fabricEmptyCanvasMixin = {
         const baseH = (stage && stage.h) || this.DEFAULT_STAGE?.h || 394;
         this._applyEmptyCanvasBoxLayout(box, container, baseW, baseH, side);
 
-        const layout = this._buildEmptyCanvasLayout(baseW, baseH);
+        const layout = this._buildEmptyCanvasLayout(baseW, baseH, box);
 
         const wrapper = document.createElement("div");
         wrapper.classList.add("design-area", "tus-empty-canvas-area");
@@ -526,8 +577,8 @@ export const fabricEmptyCanvasMixin = {
         canvasEl.style.position = "absolute";
         canvasEl.style.left = "0px";
         canvasEl.style.top = "0px";
-        canvasEl.style.width = "100%";
-        canvasEl.style.height = "100%";
+        canvasEl.style.width = `${layout.canvasW}px`;
+        canvasEl.style.height = `${layout.canvasH}px`;
 
         wrapper.appendChild(canvasEl);
         container.appendChild(wrapper);
@@ -535,16 +586,24 @@ export const fabricEmptyCanvasMixin = {
         const fabricCanvas = new fabric.Canvas(canvasEl, {
             preserveObjectStacking: true,
             selection: true,
+            allowTouchScrolling: true,
+            // 4K/HiDPI FIX: Disable Fabric's built-in retina scaling.
+            // On DPR=2 screens, Fabric doubles the canvas backing store by default,
+            // but pointer events stay in CSS-pixel space — causing all object handles
+            // and click targets to appear at 2× the correct position.
+            enableRetinaScaling: false,
         });
 
         this._applyDesignAreaGeometry(fabricCanvas, wrapper, area, layout);
+        this._syncEmptyCanvasFabricSurface(fabricCanvas, layout.canvasW, layout.canvasH);
         this._applyEmptyCanvasAreaLayout(wrapper, layout);
+        fabricCanvas.calcOffset();
 
         fabricCanvas._wrapperEl = wrapper;
-        fabricCanvas._baseW = canvasEl.width;
-        fabricCanvas._baseH = canvasEl.height;
-        fabricCanvas._lastW = canvasEl.width;
-        fabricCanvas._lastH = canvasEl.height;
+        fabricCanvas._baseW = layout.canvasW;
+        fabricCanvas._baseH = layout.canvasH;
+        fabricCanvas._lastW = layout.canvasW;
+        fabricCanvas._lastH = layout.canvasH;
         this.fabricByAreaId[area.id] = fabricCanvas;
         this.canvasesBySide[side] = this.canvasesBySide[side] || [];
         this.canvasesBySide[side].push({
@@ -579,8 +638,8 @@ export const fabricEmptyCanvasMixin = {
         fabricCanvas.requestRenderAll();
     },
 
-    _buildEmptyCanvasLayout(stageW, stageH) {
-        const { displayW, displayH } = this._computeEmptyCanvasDisplaySize(stageW, stageH);
+    _buildEmptyCanvasLayout(stageW, stageH, box) {
+        const { displayW, displayH } = this._computeEmptyCanvasDisplaySize(stageW, stageH, box);
         return {
             mode: "rect",
             left: 0,
@@ -612,7 +671,7 @@ export const fabricEmptyCanvasMixin = {
         const stageW = stage.w || 394;
         const stageH = stage.h || 394;
         this._applyEmptyCanvasBoxLayout(box, container, stageW, stageH, side);
-        const layout = this._buildEmptyCanvasLayout(stageW, stageH);
+        const layout = this._buildEmptyCanvasLayout(stageW, stageH, box);
         const areas = this[`${side}AreasData`] || [];
 
         for (const area of areas) {
@@ -621,7 +680,6 @@ export const fabricEmptyCanvasMixin = {
             if (!wrapper || !canvas) {
                 continue;
             }
-            this._applyEmptyCanvasAreaLayout(wrapper, layout);
 
             const activeObj = preserveSelection ? canvas.getActiveObject() : null;
             const oldW = canvas.getWidth();
@@ -642,21 +700,20 @@ export const fabricEmptyCanvasMixin = {
                     obj.setCoords();
                 });
             }
-            canvas.setWidth(newW);
-            canvas.setHeight(newH);
-            canvas.lowerCanvasEl.width = newW;
-            canvas.lowerCanvasEl.height = newH;
-            canvas.upperCanvasEl.width = newW;
-            canvas.upperCanvasEl.height = newH;
+            // Do NOT write lowerCanvasEl.width / upperCanvasEl.width directly — that resets
+            // the 2D context and desyncs Fabric's CSS sizing from the backing store (handles offset).
+            this._syncEmptyCanvasFabricSurface(canvas, newW, newH);
+            this._applyEmptyCanvasAreaLayout(wrapper, layout);
             canvas._baseW = newW;
             canvas._baseH = newH;
             canvas._lastW = newW;
             canvas._lastH = newH;
-            this._applyEmptyCanvasAreaLayout(wrapper, layout);
-            canvas.calcOffset();
+            canvas.getObjects().forEach((obj) => obj.setCoords?.());
             if (activeObj) {
                 canvas.setActiveObject(activeObj);
+                activeObj.setCoords?.();
             }
+            canvas.calcOffset();
             canvas.requestRenderAll();
 
             const entry = (this.canvasesBySide[side] || []).find((e) => String(e.id) === String(area.id));
