@@ -2554,6 +2554,39 @@
                 .tool[data-panel="replace"] { order: 12; }
                 .duplicate_element { order: 13; }
                 .elem_remove { order: 14; }
+
+                .tools-nav-scroll {
+                    flex: 1 1 auto !important;
+                    min-width: 0 !important;
+                    height: 100% !important;
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    align-items: center !important;
+                    gap: 4px !important;
+                    overflow-x: auto !important;
+                    overflow-y: hidden !important;
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                .tus-object-help-btn {
+                    flex: 0 0 auto !important;
+                    width: 56px !important;
+                    min-width: 56px !important;
+                    height: 44px !important;
+                    margin: 0 0 0 4px !important;
+                    padding: 2px !important;
+                    order: 99;
+                    box-shadow: none !important;
+
+                    .label {
+                        font-size: 9px !important;
+                        margin-top: 1px !important;
+                    }
+                    i.fa {
+                        font-size: 16px !important;
+                    }
+                }
             }
         }
 

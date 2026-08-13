@@ -1347,6 +1347,33 @@ class ProductDesigner(http.Controller):
         return {"product_design_image": product_design_image}
 
     @http.route(
+        ["/custom/design/delete"],
+        type="json",
+        auth="public",
+        methods=["POST"],
+        website=True,
+        csrf=False,
+    )
+    def custom_design_delete(self, **post):
+        user = request.env.user
+        if user._is_public():
+            return {"error": "login_required"}
+        partner = user.partner_id
+        if not partner:
+            return {"error": "unauthorized"}
+        try:
+            design_id = int(post.get("design_id") or 0)
+        except (TypeError, ValueError):
+            return {"error": "invalid_design"}
+        design = request.env["res.partner.design"].sudo().browse(design_id)
+        if not design.exists():
+            return {"error": "not_found"}
+        if design.partner_id.id != partner.id:
+            return {"error": "unauthorized"}
+        design.unlink()
+        return {"success": True}
+
+    @http.route(
         ["/custom/design/share"],
         type="json",
         auth="public",

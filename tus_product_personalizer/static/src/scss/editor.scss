@@ -1595,6 +1595,34 @@ html:has(.fabric_container.tus-personalizer) {
                 transform: translateY(-2px);
             }
         }
+        .template_option--saved {
+            .template-option-delete {
+                position: absolute;
+                top: 4px;
+                right: 4px;
+                z-index: 2;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                border: none;
+                border-radius: 50%;
+                background: rgba(33, 37, 41, 0.75);
+                color: #fff;
+                line-height: 24px;
+                text-align: center;
+                cursor: pointer;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+
+                &:hover {
+                    background: #dc3545;
+                }
+            }
+            &:hover .template-option-delete,
+            .template-option-delete:focus {
+                opacity: 1;
+            }
+        }
     }
 
     .section_clipart {
@@ -1708,16 +1736,27 @@ html:has(.fabric_container.tus-personalizer) {
     .tools-nav {
         flex: 0 0 92px;
         width: 92px;
-        padding: 10px 6px;
+        padding: 10px 6px 8px;
         gap: 4px;
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
         background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
         border-right: 1px solid var(--tus-border);
-        overflow-y: auto;
-        overflow-x: hidden;
-        @include thin-scroll(#cbd5e1, 4px);
+        overflow: hidden;
+        min-height: 0;
+
+        .tools-nav-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            @include thin-scroll(#cbd5e1, 4px);
+        }
 
         .tool {
             position: relative;
@@ -1788,6 +1827,45 @@ html:has(.fabric_container.tus-personalizer) {
                     background: var(--tus-gradient-brand);
                     border-radius: 0 3px 3px 0;
                 }
+            }
+        }
+
+        .tus-object-help-btn {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            margin: 8px 0 0;
+            padding: 10px 6px;
+            border: 1px solid transparent;
+            border-radius: var(--tus-radius-md);
+            background: #fff;
+            color: var(--tus-text-muted);
+            cursor: pointer;
+            transition: all 0.18s ease;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+
+            i.fa {
+                font-size: 20px;
+                line-height: 1;
+            }
+            .label {
+                display: block;
+                margin-top: 4px;
+                font-size: 10.5px;
+                font-weight: 600;
+                line-height: 1.2;
+                color: inherit;
+            }
+            &:hover {
+                color: var(--tus-brand-1);
+                background: var(--tus-brand-soft);
+                border-color: var(--tus-brand-1);
+            }
+            &.d-none {
+                display: none !important;
             }
         }
     }

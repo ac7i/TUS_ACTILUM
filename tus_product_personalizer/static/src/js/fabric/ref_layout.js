@@ -77,6 +77,7 @@ export function registerFabricRefLayout() {
             "change .tus-varnish-file-input": "_onFinishVarnishFileChange",
             "input .tus-varnish-zones-input": "_onFinishVarnishZonesInput",
             "click .tus-panel-help-btn": "_onPanelHelpButtonClick",
+            "click #tus-object-help-btn": "_onObjectHelpButtonClick",
         }),
 
         start: async function () {

@@ -598,6 +598,7 @@
 
                                 <!-- Sidebar -->
                                 <div class="tools-nav">
+                                    <div class="tools-nav-scroll">
                                     <div class="tool active color-tool d-none" data-panel="color">
                                         <span class="icon color-icon"></span>
                                         <span class="label">Color</span>
@@ -668,6 +669,16 @@
                                         <img src="/tus_product_personalizer/static/src/data/img/remove.svg" width="30" height="30" class="curved-icon"/>
                                         <span class="label mt-2">Remove</span>
                                     </div>
+                                    </div>
+                                    <button type="button"
+                                            class="tus-object-help-btn"
+                                            id="tus-object-help-btn"
+                                            t-if="personalizer_config.get('enable_help', True)"
+                                            title="Help"
+                                            aria-label="Help for this tool">
+                                        <i class="fa fa-question-circle" aria-hidden="true"/>
+                                        <span class="label mt-2">Help</span>
+                                    </button>
                                 </div>
 
                                 <!-- Right Panel -->
@@ -675,7 +686,6 @@
                                     <div class="section_tools_options section_tool_color active">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Color &amp; Shadow</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_color" title="Help for Color &amp; Shadow"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <ul class="nav" role="tablist">
                                             <li class="nav-item">
@@ -845,7 +855,6 @@
                                     <div class="section_tools_options section_tool_edit">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Edit Text</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_edit" title="Help for Edit Text"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div t-if="show_vdp" class="tus-vdp-inline-hint alert alert-light border-0 small py-2 px-2 mb-2">
                                             <i class="fa fa-info-circle me-1"/>
@@ -876,7 +885,6 @@
                                     <div class="section_tools_options section_tool_size">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Size &amp; Spacing</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_size" title="Help for Size &amp; Spacing"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div class="panel-content">
                                             <div class="control pb-2">
@@ -912,7 +920,6 @@
                                     <div class="section_tools_options section_tool_fonts">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Font Family</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_fonts" title="Help for Font Family"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div id="fontList" class="font-list-container">
                                             <ul class="font-list">
@@ -980,7 +987,6 @@
                                     <div class="section_tools_options section_tool_format">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Format &amp; Align</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_format" title="Help for Format &amp; Align"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div class="d-flex justify-content-between flex-wrap">
                                             <div class="d-flex align-items-center justify-content-center flex-1 font_opt font-bold border bg-grey p-2 px-3 cursor-pointer"
@@ -1007,7 +1013,6 @@
                                     <div class="section_tools_options section_tool_transform">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Position &amp; Rotation</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_transform" title="Help for Position &amp; Rotation"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                          <div class="control">
                                              <div class="d-flex justify-content-between align-items-center">
@@ -1022,7 +1027,6 @@
                                     <div class="section_tools_options section_tool_curved">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Curved Text</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="text_curved" title="Help for Curved Text"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <!-- Bend Radius -->
                                         <div class="control py-2">
@@ -1053,7 +1057,6 @@
                                     <div class="section_tools_options section_tool_remove_bg">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="tus-section-label small fw-semibold">Remove Background</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_remove_bg" title="Help for Remove Background"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <button type="button" class="btn btn-primary w-100 tus-remove-bg-btn">
                                             <i class="fa fa-magic me-1"/>
@@ -1066,7 +1069,6 @@
                                     <div class="section_tools_options section_tool_vectorize">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="tus-section-label small fw-semibold">Vectorize</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_vectorize" title="Help for Vectorize"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <button type="button" class="btn btn-primary w-100 tus-vectorize-btn">
                                             <i class="fa fa-object-group me-1"/>
@@ -1081,7 +1083,6 @@
                                     <div class="section_tools_options section_tool_effects">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Effects</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_effects" title="Help for Effects"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div class="control pb-2">
                                             <label class="me-2">Brightness</label>
@@ -1108,7 +1109,6 @@
                                          class="section_tools_options section_tool_finish">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="tus-section-label small fw-semibold">Print Finish</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="finish" title="Help for Print Finish"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <p class="small text-muted mb-2">
                                             Emboss the selected layer, or upload a photo to add it to the
@@ -1194,7 +1194,6 @@
                                     <div class="section_tools_options section_tool_replace">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="tus-section-label small fw-semibold">Replace Image</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_replace" title="Help for Replace Image"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div>
                                             <label for="formFile" class="form-label">Replace Image</label>
@@ -1209,7 +1208,6 @@
                                     <div class="section_tools_options section_tool_flip">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Flip</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_flip" title="Help for Flip"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div class="d-flex gap-3 justify-content-center align-items-center">
                                             <div class="flipx px-3 py-1 d-flex justify-content-center align-items-center cursor-pointer bg-grey rounded flex-wrap border">
@@ -1227,7 +1225,6 @@
                                     <div class="section_tools_options section_tool_opacity">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span class="tus-section-label small fw-semibold">Opacity</span>
-                                            <button type="button" class="tus-panel-help-btn btn btn-sm p-0" data-help-context="image_opacity" title="Help for Opacity"><i class="fa fa-question-circle text-muted"/></button>
                                         </div>
                                         <div class="control">
                                             <div class="d-flex justify-content-between align-items-center">
@@ -1264,13 +1261,6 @@
                                 />
                                 <span class="fab_label">Add Text</span>
                             </div>
-                            <div t-if="personalizer_config.get('enable_layers', True)" class="fab_item" data-option="layers">
-                                <img
-                                    src="/tus_product_personalizer/static/src/data/img/dashboard_icon-03.svg"
-                                    class="fab_icon"
-                                />
-                                <span class="fab_label">Manage Layers</span>
-                            </div>
                             <div t-if="personalizer_config.get('enable_shape', True)" class="fab_item" data-option="shapes">
                                 <img
                                     src="/tus_product_personalizer/static/src/data/img/dashboard_icon-04.svg"
@@ -1282,13 +1272,19 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
                                 <span class="fab_label">Add Clipart</span>
                             </div>
-                            <div t-if="personalizer_config.get('enable_ai')" class="fab_item" data-option="ai">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;">
-                                    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
-                                    <path d="M5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1 1 3z"/>
-                                    <path d="M19 13l.75 2.25L22 16l-2.25.75L19 19l-.75-2.25L16 16l2.25-.75L19 13z"/>
+                            <div t-if="show_texture" class="fab_item" data-option="textures">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fab_icon" style="color: grey; margin-bottom: 5px;">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M3 15l5-5 4 4 5-6 4 5"/>
                                 </svg>
-                                <span class="fab_label">AI</span>
+                                <span class="fab_label">Base Texture</span>
+                            </div>
+                            <div t-if="personalizer_config.get('enable_layers', True)" class="fab_item" data-option="layers">
+                                <img
+                                    src="/tus_product_personalizer/static/src/data/img/dashboard_icon-03.svg"
+                                    class="fab_icon"
+                                />
+                                <span class="fab_label">Manage Layers</span>
                             </div>
                             <div
                                 class="fab_item"
@@ -1301,18 +1297,19 @@
                                 />
                                 <span class="fab_label">Templates</span>
                             </div>
+                            <div t-if="personalizer_config.get('enable_ai')" class="fab_item" data-option="ai">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fab_icon" style="color: grey; margin-bottom: 5px;">
+                                    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                    <path d="M5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1 1 3z"/>
+                                    <path d="M19 13l.75 2.25L22 16l-2.25.75L19 19l-.75-2.25L16 16l2.25-.75L19 13z"/>
+                                </svg>
+                                <span class="fab_label">AI</span>
+                            </div>
                             <div t-if="show_vdp" class="fab_item" data-option="vdp">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fab_icon" style="color: grey; margin-bottom: 5px;">
                                     <path d="M4 6h16M4 10h16M4 14h10M4 18h6"/>
                                 </svg>
                                 <span class="fab_label">VDP</span>
-                            </div>
-                            <div t-if="show_texture" class="fab_item" data-option="textures">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fab_icon" style="color: grey; margin-bottom: 5px;">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                    <path d="M3 15l5-5 4 4 5-6 4 5"/>
-                                </svg>
-                                <span class="fab_label">Base Texture</span>
                             </div>
                             </div>
                             <button type="button"
@@ -1329,13 +1326,6 @@
                             <div class="tus-panel-header">
                                 <h6 class="tus-panel-title mb-0">Tools</h6>
                                 <div class="d-flex align-items-center gap-1">
-                                    <button type="button"
-                                            class="tus-btn-icon tus-panel-help-btn"
-                                            t-if="personalizer_config.get('enable_help', True)"
-                                            title="Help"
-                                            aria-label="Help for this panel">
-                                        <i class="fa fa-question-circle" aria-hidden="true"/>
-                                    </button>
                                     <button type="button" class="tus-btn-icon options-close-btn" aria-label="Close panel">
                                         <i class="fa fa-times"/>
                                     </button>
@@ -2046,7 +2036,7 @@
                                     </t>
                                     <t t-if="design_ids">
                                         <p class="small text-muted mb-2 px-1" t-if="product_template_ids">My saved designs</p>
-                                        <div class="fab_template_grid">
+                                        <div class="fab_template_grid fab_template_grid--saved">
                                             <t t-foreach="design_ids" t-as="design_id">
                                                 <div t-if="design_id.view_image"
                                                      class="template_option template_option--saved"
@@ -2056,6 +2046,13 @@
                                                     <img class="template_img"
                                                          t-att-src="image_data_uri(design_id.view_image)"
                                                          alt="Saved design"/>
+                                                    <button type="button"
+                                                            class="template-option-delete"
+                                                            t-att-data-design_id="design_id.id"
+                                                            title="Delete saved design"
+                                                            aria-label="Delete saved design">
+                                                        <i class="fa fa-trash" aria-hidden="true"/>
+                                                    </button>
                                                 </div>
                                             </t>
                                         </div>

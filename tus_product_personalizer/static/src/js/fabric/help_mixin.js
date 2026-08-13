@@ -39,6 +39,24 @@ function normalizeVideoEmbedUrl(url) {
     return raw;
 }
 
+const OBJECT_TOOL_HELP_CONTEXT = {
+    color: "text_color",
+    edit: "text_edit",
+    size: "text_size",
+    fonts: "text_fonts",
+    format: "text_format",
+    curved: "text_curved",
+    transform: "text_transform",
+    vdp: "vdp",
+    effects: "image_effects",
+    finish: "finish",
+    remove_bg: "image_remove_bg",
+    vectorize: "image_vectorize",
+    replace: "image_replace",
+    flip: "image_flip",
+    opacity: "image_opacity",
+};
+
 const PANEL_HELP_CONTEXT = {
     swap: "swap",
     image: "image",
@@ -67,6 +85,10 @@ const PANEL_HELP_CONTEXT = {
     text_transform: "text_transform",
     text_curved: "text_curved",
 };
+
+function hasHelpRecord(record) {
+    return Boolean(record && (record.body || record.video_url || record.name));
+}
 
 export const fabricHelpMixin = {
     _getHelpContent: function () {
@@ -105,7 +127,31 @@ export const fabricHelpMixin = {
         return {};
     },
 
+    _isObjectToolbarOpen: function () {
+        const $toolbar = this.$(".new_toolbar_container");
+        return $toolbar.length > 0 && !$toolbar.hasClass("d-none");
+    },
+
+    _resolveObjectToolHelpContext: function () {
+        const activeTool = this.$(".new_toolbar_container .tool.active");
+        if (!activeTool.length) {
+            return null;
+        }
+        const panel = String(activeTool.data("panel") || "");
+        if (!panel || panel === "duplicate" || panel === "remove") {
+            return null;
+        }
+        return OBJECT_TOOL_HELP_CONTEXT[panel] || PANEL_HELP_CONTEXT[panel] || panel;
+    },
+
     _resolveCurrentHelpContext: function () {
+        if (this._isObjectToolbarOpen()) {
+            const objectContext = this._resolveObjectToolHelpContext();
+            if (objectContext) {
+                return objectContext;
+            }
+        }
+
         // Return active sidebar panel option (e.g. image, text, swap, shapes, clipart, textures, layers, templates, vdp, ai)
         const activeFab = this.$(".sidebar_options .fab_item.active");
         if (activeFab.length && activeFab.data("option")) {
@@ -134,26 +180,39 @@ export const fabricHelpMixin = {
         this.$(".tus-panel-help-btn").each((idx, btn) => {
             const $btn = $(btn);
             const explicit = $btn.attr("data-help-context");
-            // If element has explicit data-help-context, test that exact key.
-            // If element has no data-help-context (panel header button), test active sidebar menu context.
             const contextKey = explicit || sidebarContext;
-
             const record = contextKey ? byContext[contextKey] : null;
-            const hasHelp = Boolean(record && (record.body || record.video_url || record.name));
-
-            $btn.toggleClass("d-none", !hasHelp);
+            $btn.toggleClass("d-none", !hasHelpRecord(record));
         });
 
-        // Top-level main help button
-        const mainHelp = byContext["main"] || {};
-        const hasMainHelp = Boolean(mainHelp.body || mainHelp.video_url || mainHelp.name);
-        this.$("#tus-help-btn").toggleClass("d-none", !hasMainHelp);
+        // Object toolbar help — always visible at bottom while effects/tools rail is open
+        this.$("#tus-object-help-btn").toggleClass("d-none", !this._isObjectToolbarOpen());
+
+        // Main rail help: prefer active sidebar context, fall back to "main"
+        const railContext = this._isObjectToolbarOpen()
+            ? (this.$(".sidebar_options .fab_item.active").data("option") || "main")
+            : sidebarContext;
+        const contextHelp = byContext[railContext] || {};
+        const mainHelp = byContext.main || {};
+        const railHelp = hasHelpRecord(contextHelp) ? contextHelp : mainHelp;
+        this.$("#tus-help-btn").toggleClass("d-none", !hasHelpRecord(railHelp));
     },
 
     _onHelpButtonClick: function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
-        this._openHelpDialog("main");
+        const contextKey = this._resolveCurrentHelpContext();
+        const help = this._getHelpContent();
+        const byContext = help.by_context || {};
+        const contextHelp = byContext[contextKey] || {};
+        this._openHelpDialog(hasHelpRecord(contextHelp) ? contextKey : "main");
+    },
+
+    _onObjectHelpButtonClick: function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const contextKey = this._resolveObjectToolHelpContext() || "finish";
+        this._openHelpDialog(contextKey);
     },
 
     _onPanelHelpButtonClick: function (ev) {

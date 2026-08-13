@@ -60,6 +60,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
     events: {
         "click .fab_item": "_onChangeOption",
         "click #tus-help-btn": "_onHelpButtonClick",
+        "click #tus-object-help-btn": "_onObjectHelpButtonClick",
         "click .tus-panel-help-btn": "_onPanelHelpButtonClick",
         "click .tus-help-dialog-close": "_onHelpDialogClose",
         "click .tus-help-backdrop": "_onHelpBackdropClick",
@@ -137,6 +138,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         "click .share_btn": "_onShareDesign",
         "click .add_to_save": "_onSaveCanvasOrShare",
         "click .share_save_btn": "_onSaveSharedDesign",
+        "click .template-option-delete": "_onDeleteSavedTemplate",
         "click .template_option": "_onSelectTemplate",
         "click .text_template_option": "_onSelectTextTemplate",
         "click .fab_text_template_category_btn": "_onTextTemplateCategoryClick",
@@ -3679,6 +3681,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             canvas.discardActiveObject();
             canvas.requestRenderAll();
         }
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
+        }
     },
 
     _onAddDefaultImage: function (ev) {
@@ -5291,6 +5296,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
     },
 
     _onSelectTemplate: async function (ev) {
+        if ($(ev.target).closest(".template-option-delete").length) {
+            return;
+        }
         const $target = $(ev.currentTarget);
         const mode = $target.data("mode");
         if (mode === "Product") {
@@ -5321,6 +5329,55 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             } finally {
                 this.removeLoader();
             }
+        }
+    },
+
+    _onDeleteSavedTemplate: async function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const $btn = $(ev.currentTarget);
+        const designId = parseInt($btn.data("design_id") || $btn.closest(".template_option").data("design_id") || 0, 10);
+        if (!designId) {
+            return;
+        }
+        if (!window.confirm(_t("Delete this saved design? This cannot be undone."))) {
+            return;
+        }
+        try {
+            const result = await this.rpc("/custom/design/delete", { design_id: designId });
+            if (result?.error) {
+                const messages = {
+                    login_required: _t("Please log in to delete saved designs."),
+                    unauthorized: _t("You can only delete your own saved designs."),
+                    not_found: _t("Saved design not found."),
+                    invalid_design: _t("Invalid saved design."),
+                };
+                this.notification.add(messages[result.error] || _t("Could not delete saved design."), {
+                    type: "danger",
+                });
+                return;
+            }
+            const $card = $btn.closest(".template_option--saved");
+            const $grid = $card.closest(".fab_template_grid--saved");
+            $card.remove();
+            if ($grid.length && !$grid.find(".template_option--saved").length) {
+                const $container = $grid.closest(".fab_template_container");
+                $grid.prev("p.small.text-muted").remove();
+                $grid.remove();
+                if (
+                    $container.length
+                    && !$container.find(".template_option").length
+                    && !$container.find(".small.text-muted").length
+                ) {
+                    $container.append(
+                        `<p class="small text-muted px-1 mb-0">${_t("No templates available yet.")}</p>`
+                    );
+                }
+            }
+            this.notification.add(_t("Saved design deleted."), { type: "success" });
+        } catch (e) {
+            console.error("Delete saved design failed:", e);
+            this.notification.add(_t("Could not delete saved design."), { type: "danger" });
         }
     },
 
@@ -5386,6 +5443,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                         "id", "locked", "title", "extra_elem", "_curvedMeta",
                         "tusFinishEffect", "tusReliefMm", "tusVarnishType", "tusFoilMetal",
                         "tusTextureIntensityMm", "tusTextureActive",
+                        "tusTextureFile", "tusTextureFileName",
                         "tusVarnishCoverMode", "tusVarnishAreaFile", "tusVarnishAreaFileName",
                         "tusVarnishZonesDescription",
                         "backend_id", "isVectorSvgGroup", "isEmbeddedPhotoSvg",
@@ -5794,6 +5852,15 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
         if (this.canvas) {
             this.managelayers();
+            const active = this.canvas.getActiveObject?.();
+            const finishTarget =
+                active
+                || (this.canvas.getObjects?.() || []).find(
+                    (obj) => obj?.tusTextureActive || obj?.tusTextureFile
+                );
+            if (finishTarget && typeof this._syncFinishPanelFromObject === "function") {
+                this._syncFinishPanelFromObject(finishTarget);
+            }
         }
 
         if (bundle.finish_settings) {
