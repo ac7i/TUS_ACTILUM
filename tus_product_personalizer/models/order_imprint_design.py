@@ -176,7 +176,7 @@ class OrderImprintDesign(models.Model):
     def _get_print_color_mode(self):
         """Return 'cmyk' or 'rgb' based on website print settings."""
         website = self.env['website'].get_current_website()
-        return website.personalizer_print_color_mode or 'cmyk'
+        return website.personalizer_print_color_mode or 'rgb'
 
     def _get_print_color_map(self):
         """Build hex → CMYK map from imprint colors and the palette."""

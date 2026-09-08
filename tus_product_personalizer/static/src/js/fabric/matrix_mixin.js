@@ -1042,12 +1042,33 @@ export const fabricMatrixMixin = {
         }
     },
 
+    _serializeFillForImprint: function (fill) {
+        // Design templates may leave Fabric Gradient objects on fill; server
+        // needs a string for palette/CMYK Char fields.
+        if (!fill) {
+            return null;
+        }
+        if (typeof fill === "string") {
+            const text = fill.trim();
+            return text || null;
+        }
+        if (typeof fill === "object") {
+            const stops = fill.colorStops || fill.color_stops || [];
+            for (const stop of stops) {
+                if (stop && typeof stop.color === "string" && stop.color.trim()) {
+                    return stop.color.trim();
+                }
+            }
+            return null;
+        }
+        return String(fill);
+    },
+
     _buildCanvasValEntry: function (canvas, obj, dim, actual, elemImage) {
         ensureObjectFinishDefaults(obj);
-        const imprintCmyk = obj.tusCmyk || resolveCmykForColor(
-            obj.fill,
-            this._paletteCmykMap || {}
-        );
+        const fill = this._serializeFillForImprint(obj.fill);
+        const imprintCmyk = (typeof obj.tusCmyk === "string" && obj.tusCmyk) ||
+            resolveCmykForColor(fill, this._paletteCmykMap || {});
         const backendId = obj.backend_id || obj.backendId || obj.image_id ||
             (Array.isArray(obj.objects) && obj.objects.find(o => o.backend_id || o.backendId || o.image_id)?.backend_id);
         const origAttId = obj.originalAttachmentId || obj.original_attachment_id ||
@@ -1065,7 +1086,7 @@ export const fabricMatrixMixin = {
                 scaleX: obj.scaleX,
                 scaleY: obj.scaleY,
                 angle: obj.angle,
-                fill: obj.fill || null,
+                fill: fill,
                 imprint_cmyk: imprintCmyk || null,
                 element_image: elemImage,
             },
@@ -1142,10 +1163,47 @@ export const fabricMatrixMixin = {
             let printW = masterActual.width;
             let printH = masterActual.height;
             let printUnit = masterActual.unit;
-            if (!self.emptyCanvasMode && allCanvasVals.length === 1) {
+            // Product-page canvas size is the source of truth in empty-canvas mode.
+            if (self.emptyCanvasMode && self.emptyCanvasActual?.width && self.emptyCanvasActual?.height) {
+                printW = self.emptyCanvasActual.width;
+                printH = self.emptyCanvasActual.height;
+                printUnit = self.emptyCanvasActual.unit || printUnit || "in";
+            } else if (!self.emptyCanvasMode && allCanvasVals.length === 1) {
                 printW = allCanvasVals[0].width;
                 printH = allCanvasVals[0].height;
                 printUnit = allCanvasVals[0].unit || printUnit;
+            }
+
+            let printDataUrl = null;
+            if (self.emptyCanvasMode && typeof self._exportEmptyCanvasExactPrintDataUrl === "function") {
+                const [dpiX, dpiY] = self._parsePrintQualityPpi
+                    ? self._parsePrintQualityPpi(self.emptyCanvasPrintQuality)
+                    : [300, 300];
+                const pixels = self._physicalSizeToPrintPixels
+                    ? self._physicalSizeToPrintPixels(printW, printH, printUnit, dpiX, dpiY)
+                    : null;
+                if (pixels) {
+                    const layout = sideCanvases[0]?.layout || {};
+                    try {
+                        printDataUrl = self._exportEmptyCanvasExactPrintDataUrl(sideCanvases, layout, {
+                            side,
+                            outputWidth: pixels.width,
+                            outputHeight: pixels.height,
+                            format: "png",
+                            quality: 1,
+                        });
+                    } catch (err) {
+                        console.warn("Exact print sheet export failed:", err);
+                        printDataUrl = null;
+                    }
+                }
+            } else {
+                // Mockup products: high-res composite without the 1024 preview cap.
+                printDataUrl = await self._exportSideDuringBatch(side, {
+                    format: "png",
+                    quality: 1,
+                    maxSize: 4096,
+                });
             }
 
             const activeAreas = sideCanvases
@@ -1165,6 +1223,7 @@ export const fabricMatrixMixin = {
             designData.push({
                 side,
                 data: dataUrl,
+                print_data: printDataUrl,
                 canvas_vals: allCanvasVals,
                 width: printW,
                 height: printH,

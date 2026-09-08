@@ -15,6 +15,8 @@ HELP_CONTEXT_SELECTION = [
     ("layers", "Manage Layers"),
     ("templates", "Templates"),
     ("finish", "Print Finish"),
+    ("finish_texture", "Print Finish → Texture / Emboss"),
+    ("finish_varnish", "Print Finish → Varnish"),
     ("vdp", "VDP"),
     ("ai", "AI"),
     # ── Image child sections ────────────────────────────────────────────────
@@ -24,14 +26,22 @@ HELP_CONTEXT_SELECTION = [
     ("image_replace", "Image → Replace Image"),
     ("image_flip", "Image → Flip"),
     ("image_opacity", "Image → Opacity"),
+    ("image_transform", "Image → Rotate"),
+    ("image_qr", "Image → QR Code"),
     # ── Text child sections ─────────────────────────────────────────────────
     ("text_color", "Text → Color / Fill / Shadow"),
+    ("text_fill", "Text → Fill"),
+    ("text_stroke", "Text → Stroke"),
+    ("text_shadow", "Text → Shadow"),
     ("text_edit", "Text → Edit Content"),
     ("text_size", "Text → Size & Spacing"),
     ("text_fonts", "Text → Font Family"),
     ("text_format", "Text → Format & Align"),
     ("text_transform", "Text → Position & Rotation"),
     ("text_curved", "Text → Curved Text"),
+    # ── Shared object actions ───────────────────────────────────────────────
+    ("object_duplicate", "Object → Duplicate"),
+    ("object_remove", "Object → Remove"),
 ]
 
 

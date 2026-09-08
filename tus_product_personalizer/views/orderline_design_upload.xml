@@ -25,6 +25,13 @@
                                 string="Download SVG"
                                 class="btn-primary"
                                 icon="fa-download"/>
+                        <button name="action_download_print_ready_pdf"
+                                type="object"
+                                string="Download Print-Ready PDF"
+                                class="btn-primary"
+                                icon="fa-file-pdf-o"
+                                invisible="not print_sheet_image and not uploaded_attachment"/>
+                        <field name="print_sheet_image" invisible="1"/>
                         <button name="action_download_ai"
                                 type="object"
                                 string="Download AI"

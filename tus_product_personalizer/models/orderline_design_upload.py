@@ -31,6 +31,12 @@ class OrderlineDesignUpload(models.Model):
     )
     uploaded_attachment = fields.Binary("Preview", attachment=True)
     uploaded_attachment_rel = fields.Binary(related="uploaded_attachment")
+    print_sheet_image = fields.Binary(
+        string="Exact Size Print Sheet",
+        attachment=True,
+        help="High-resolution print sheet rendered at product-page canvas size × print quality PPI. "
+             "No preview chrome or size label.",
+    )
     design_svg = fields.Binary("Print SVG", attachment=True)
     design_ai = fields.Binary("Print AI", attachment=True)
     print_width = fields.Float("Print Width")
@@ -101,7 +107,7 @@ class OrderlineDesignUpload(models.Model):
 
     def _get_print_color_mode(self):
         website = self.env['website'].get_current_website()
-        return website.personalizer_print_color_mode or 'cmyk'
+        return website.personalizer_print_color_mode or 'rgb'
 
     def _get_print_color_map(self):
         from odoo.addons.tus_product_personalizer.utils.color_conversion import build_print_color_map
@@ -194,12 +200,6 @@ class OrderlineDesignUpload(models.Model):
             "files": files,
         }
 
-    def _download_filename(self, extension):
-        self.ensure_one()
-        side = self.uploaded_type or "design"
-        safe_name = (self.name or str(self.id)).replace("/", "-")
-        return f"{side}_{safe_name}.{extension}"
-
     def _get_svg_bytes(self):
         from odoo.addons.tus_product_personalizer.utils.print_vector import is_vector_svg_bytes
 
@@ -258,7 +258,12 @@ class OrderlineDesignUpload(models.Model):
             self.sudo().write(vals)
 
     def _download_attachment_action(self, raw_bytes, filename, mimetype):
-        attachment = self.env["ir.attachment"].sudo().create({
+        # Odoo post-processes image attachments to base.image_autoresize_max_px
+        # (default 1920x1920) unless image_no_postprocess is set. That was
+        # collapsing exact-size print PNGs.
+        attachment = self.env["ir.attachment"].sudo().with_context(
+            image_no_postprocess=True,
+        ).create({
             "name": filename,
             "type": "binary",
             "datas": base64.b64encode(raw_bytes),
@@ -271,6 +276,163 @@ class OrderlineDesignUpload(models.Model):
             "url": f"/web/content/{attachment.id}?download=true",
             "target": "self",
         }
+
+    def _resolve_exact_print_size(self):
+        """Physical print size from product-page canvas (SO line), then design fields."""
+        self.ensure_one()
+        line = self.order_line
+        if line and line.empty_canvas_width and line.empty_canvas_height:
+            unit = (line.empty_canvas_unit or "").strip() or "in"
+            return float(line.empty_canvas_width), float(line.empty_canvas_height), unit
+
+        width = self.print_width or False
+        height = self.print_height or False
+        unit = (self.print_unit or "").strip() or "in"
+        if not width or not height:
+            raise UserError(_(
+                "Print size is missing for this design. "
+                "Size is set from the product page canvas selection."
+            ))
+        return float(width), float(height), unit
+
+    def _resolve_exact_print_ppi(self):
+        """PPI from product-page print quality on the sale order line."""
+        from odoo.addons.tus_product_personalizer.utils.print_vector import (
+            parse_print_quality_ppi,
+        )
+
+        self.ensure_one()
+        quality = ""
+        if self.order_line:
+            quality = self.order_line.empty_canvas_print_quality or ""
+        return parse_print_quality_ppi(quality)
+
+    def _build_exact_size_png_bytes(self):
+        """Build PNG bytes at product-page size × PPI (with DPI metadata)."""
+        from odoo.addons.tus_product_personalizer.utils.print_vector import (
+            _print_pixel_size,
+            resize_preview_to_print_png,
+        )
+
+        self.ensure_one()
+        source = self.print_sheet_image or self.uploaded_attachment
+        if not source:
+            raise UserError(_("No design image available to export at exact size."))
+
+        width, height, unit = self._resolve_exact_print_size()
+        dpi_x, dpi_y = self._resolve_exact_print_ppi()
+        px_w, px_h = _print_pixel_size(width, height, unit, dpi=dpi_x, dpi_y=dpi_y)
+        if not px_w or not px_h:
+            raise UserError(_("Could not compute print pixel size for this design."))
+        max_edge = 20000
+        if px_w > max_edge or px_h > max_edge:
+            raise UserError(_(
+                "Exact-size export is too large (%(w)s × %(h)s px). "
+                "Reduce canvas size or print quality."
+            ) % {"w": px_w, "h": px_h})
+
+        try:
+            return resize_preview_to_print_png(
+                base64.b64decode(source),
+                output_width=px_w,
+                output_height=px_h,
+                dpi_x=dpi_x,
+                dpi_y=dpi_y,
+            ), px_w, px_h, dpi_x, dpi_y
+        except Exception as err:
+            _logger.exception("Exact-size PNG export failed for design %s", self.id)
+            raise UserError(_(
+                "Could not generate exact-size PNG for this design: %s"
+            ) % err) from err
+
+    def _build_exact_size_pdf_bytes(self):
+        """Build print-ready PDF at exact physical size (CMYK or RGB per settings)."""
+        from odoo.addons.tus_product_personalizer.utils.print_vector import (
+            ExactSizePdfError,
+            build_exact_size_print_pdf,
+        )
+
+        self.ensure_one()
+        png_bytes, px_w, px_h, dpi_x, dpi_y = self._build_exact_size_png_bytes()
+        width, height, unit = self._resolve_exact_print_size()
+        color_mode = self._get_print_color_mode()
+        try:
+            pdf_bytes = build_exact_size_print_pdf(
+                png_bytes,
+                width=width,
+                height=height,
+                unit=unit,
+                dpi_x=dpi_x,
+                dpi_y=dpi_y,
+                color_mode=color_mode,
+            )
+        except ExactSizePdfError as err:
+            raise UserError(str(err)) from err
+        except Exception as err:
+            _logger.exception("Exact-size PDF export failed for design %s", self.id)
+            raise UserError(_(
+                "Could not generate exact-size PDF for this design: %s"
+            ) % err) from err
+        return pdf_bytes, px_w, px_h, dpi_x, dpi_y, width, height, unit, color_mode
+
+    def _download_filename(self, extension="pdf"):
+        """Static download name (e.g. print_preview.pdf)."""
+        ext = (extension or "pdf").lstrip(".")
+        return f"print_preview.{ext}"
+
+    def _print_ready_designs_for_download(self):
+        """Expand selection to all sides on the same order line (front + back, etc.)."""
+        lines = self.mapped("order_line").filtered(bool)
+        if not lines:
+            return self
+        return self.env["orderline.design.upload"].search(
+            [("order_line", "in", lines.ids)],
+            order="order_line, id",
+        )
+
+    def action_download_print_ready_pdf(self):
+        """Download print PDF at canvas physical size × PDP PPI (correct MediaBox)."""
+        self.ensure_one()
+
+        from odoo.addons.tus_product_personalizer.utils.print_pdf import (
+            merge_pdf_bytes_list,
+        )
+
+        designs = self._print_ready_designs_for_download()
+        if not designs:
+            raise UserError(_("No designs available for print-ready PDF."))
+
+        pdf_pages = []
+        for design in designs:
+            try:
+                pdf_bytes, *_rest = design._build_exact_size_pdf_bytes()
+            except UserError:
+                raise
+            except Exception as err:
+                _logger.exception("Print-ready PDF failed for design %s", design.id)
+                raise UserError(_(
+                    "Could not build print-ready PDF for this design: %s"
+                ) % err) from err
+            if pdf_bytes:
+                pdf_pages.append(pdf_bytes)
+
+        if not pdf_pages:
+            raise UserError(_("Could not build print-ready PDF."))
+
+        pdf_bytes = pdf_pages[0] if len(pdf_pages) == 1 else merge_pdf_bytes_list(pdf_pages)
+        if not pdf_bytes:
+            raise UserError(_("Could not build print-ready PDF."))
+
+        return designs[:1]._download_attachment_action(
+            pdf_bytes,
+            designs[:1]._download_filename("pdf"),
+            "application/pdf",
+        )
+
+    def action_download_exact_size_pdf(self):
+        """Download print PDF at exact canvas size (same as print-ready)."""
+        self.ensure_one()
+        return self.action_download_print_ready_pdf()
 
     def action_download_design(self):
         """Download shop preview PNG."""
@@ -291,7 +453,10 @@ class OrderlineDesignUpload(models.Model):
         self._ensure_print_files(force=True)
         svg_bytes = self._get_svg_bytes()
         if not svg_bytes:
-            raise UserError(_("Could not generate vector SVG for this design. Place a new order after upgrading the module."))
+            raise UserError(_(
+                "Could not generate vector SVG for this design. "
+                "Place a new order after upgrading the module."
+            ))
         return self._download_attachment_action(
             svg_bytes,
             self._download_filename("svg"),
@@ -302,7 +467,10 @@ class OrderlineDesignUpload(models.Model):
         self.ensure_one()
         self._ensure_print_files(force=True)
         if not self.design_ai:
-            raise UserError(_("Could not generate AI file. Install cairosvg in the Odoo Python environment."))
+            raise UserError(_(
+                "Could not generate AI file. "
+                "Install cairosvg in the Odoo Python environment."
+            ))
         return self._download_attachment_action(
             base64.b64decode(self.design_ai),
             self._download_filename("ai"),

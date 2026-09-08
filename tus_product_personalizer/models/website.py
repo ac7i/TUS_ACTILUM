@@ -230,9 +230,10 @@ class Website(models.Model):
             ('rgb', 'RGB (Screen Preview)'),
         ],
         string="Print Export Color Mode",
-        default='cmyk',
-        help="CMYK converts exported SVG/AI files to device-cmyk() colors for "
-             "print shops. RGB keeps screen colors in export files.",
+        default='rgb',
+        help="RGB builds exact-size Print-Ready PDFs without Ghostscript. "
+             "CMYK converts Print-Ready PDFs via Ghostscript (gs must be installed) "
+             "and also converts SVG/AI exports to device-cmyk() colors.",
     )
     personalizer_upload_max_mb = fields.Integer(
         string="Max Upload Size (MB)",
@@ -250,11 +251,27 @@ class Website(models.Model):
         help="Longest side of the browser-safe preview generated from TIFF/PDF/"
              "high-resolution uploads.",
     )
+    personalizer_upload_cleanup_enabled = fields.Boolean(
+        string="Cleanup Unused Uploads",
+        default=True,
+        help="When enabled, a scheduled action deletes unused designer library "
+             "uploads (and their filestore originals) older than the retention "
+             "period. Files linked to orders or saved customer designs are never "
+             "removed, so admin Download Source keeps working.",
+    )
+    personalizer_upload_retention_days = fields.Integer(
+        string="Unused Upload Retention (days)",
+        default=90,
+        help="Delete unused temporary uploads older than this many days. "
+             "Large source files are stored on disk (filestore), not inside the "
+             "database; the database mainly keeps order data and links.",
+    )
 
     @api.constrains(
         'personalizer_upload_max_mb',
         'personalizer_upload_max_pixels',
         'personalizer_preview_max_side',
+        'personalizer_upload_retention_days',
     )
     def _check_personalizer_upload_limits(self):
         for website in self:
@@ -264,6 +281,8 @@ class Website(models.Model):
                 raise ValidationError(_('Max upload pixels cannot be negative.'))
             if (website.personalizer_preview_max_side or 0) < 512:
                 raise ValidationError(_('Editor preview max side must be at least 512 px.'))
+            if (website.personalizer_upload_retention_days or 0) < 1:
+                raise ValidationError(_('Unused upload retention must be at least 1 day.'))
 
     def get_personalizer_upload_limits(self):
         self.ensure_one()

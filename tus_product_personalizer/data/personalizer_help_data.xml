@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Inactive placeholders — admins activate and fill HTML/video per context. -->
+
+        <!-- Main sidebar -->
+        <record id="help_ctx_main" model="product.personalizer.help">
+            <field name="name">Main Options</field>
+            <field name="context_key">main</field>
+            <field name="sequence">10</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for the main designer options.</p>]]></field>
+        </record>
+        <record id="help_ctx_swap" model="product.personalizer.help">
+            <field name="name">Product</field>
+            <field name="context_key">swap</field>
+            <field name="sequence">20</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for swapping / selecting the product.</p>]]></field>
+        </record>
+        <record id="help_ctx_image" model="product.personalizer.help">
+            <field name="name">Add Image</field>
+            <field name="context_key">image</field>
+            <field name="sequence">30</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for uploading and adding images.</p>]]></field>
+        </record>
+        <record id="help_ctx_text" model="product.personalizer.help">
+            <field name="name">Add Text</field>
+            <field name="context_key">text</field>
+            <field name="sequence">40</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for adding text to the design.</p>]]></field>
+        </record>
+        <record id="help_ctx_shapes" model="product.personalizer.help">
+            <field name="name">Add Graphics</field>
+            <field name="context_key">shapes</field>
+            <field name="sequence">50</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for adding shapes and graphics.</p>]]></field>
+        </record>
+        <record id="help_ctx_clipart" model="product.personalizer.help">
+            <field name="name">Add Clipart</field>
+            <field name="context_key">clipart</field>
+            <field name="sequence">60</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for browsing and adding clipart.</p>]]></field>
+        </record>
+        <record id="help_ctx_textures" model="product.personalizer.help">
+            <field name="name">Base Texture</field>
+            <field name="context_key">textures</field>
+            <field name="sequence">70</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for applying a base texture.</p>]]></field>
+        </record>
+        <record id="help_ctx_layers" model="product.personalizer.help">
+            <field name="name">Manage Layers</field>
+            <field name="context_key">layers</field>
+            <field name="sequence">80</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for managing design layers.</p>]]></field>
+        </record>
+        <record id="help_ctx_templates" model="product.personalizer.help">
+            <field name="name">Templates</field>
+            <field name="context_key">templates</field>
+            <field name="sequence">90</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for using design templates.</p>]]></field>
+        </record>
+        <record id="help_ctx_finish" model="product.personalizer.help">
+            <field name="name">Print Finish</field>
+            <field name="context_key">finish</field>
+            <field name="sequence">100</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for print finish options (texture / varnish).</p>]]></field>
+        </record>
+        <record id="help_ctx_finish_texture" model="product.personalizer.help">
+            <field name="name">Print Finish → Texture / Emboss</field>
+            <field name="context_key">finish_texture</field>
+            <field name="sequence">110</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for texture / emboss finish.</p>]]></field>
+        </record>
+        <record id="help_ctx_finish_varnish" model="product.personalizer.help">
+            <field name="name">Print Finish → Varnish</field>
+            <field name="context_key">finish_varnish</field>
+            <field name="sequence">120</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for varnish finish.</p>]]></field>
+        </record>
+        <record id="help_ctx_vdp" model="product.personalizer.help">
+            <field name="name">VDP</field>
+            <field name="context_key">vdp</field>
+            <field name="sequence">130</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for variable data printing.</p>]]></field>
+        </record>
+        <record id="help_ctx_ai" model="product.personalizer.help">
+            <field name="name">AI</field>
+            <field name="context_key">ai</field>
+            <field name="sequence">140</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for AI image generation.</p>]]></field>
+        </record>
+
+        <!-- Image object menus -->
+        <record id="help_ctx_image_effects" model="product.personalizer.help">
+            <field name="name">Image → Effects</field>
+            <field name="context_key">image_effects</field>
+            <field name="sequence">200</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for image effects.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_remove_bg" model="product.personalizer.help">
+            <field name="name">Image → Remove Background</field>
+            <field name="context_key">image_remove_bg</field>
+            <field name="sequence">210</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for removing image backgrounds.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_vectorize" model="product.personalizer.help">
+            <field name="name">Image → Vectorize</field>
+            <field name="context_key">image_vectorize</field>
+            <field name="sequence">220</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for vectorizing images.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_replace" model="product.personalizer.help">
+            <field name="name">Image → Replace Image</field>
+            <field name="context_key">image_replace</field>
+            <field name="sequence">230</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for replacing an image.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_flip" model="product.personalizer.help">
+            <field name="name">Image → Flip</field>
+            <field name="context_key">image_flip</field>
+            <field name="sequence">240</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for flipping images.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_opacity" model="product.personalizer.help">
+            <field name="name">Image → Opacity</field>
+            <field name="context_key">image_opacity</field>
+            <field name="sequence">250</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for image opacity.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_transform" model="product.personalizer.help">
+            <field name="name">Image → Rotate</field>
+            <field name="context_key">image_transform</field>
+            <field name="sequence">260</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for rotating images.</p>]]></field>
+        </record>
+        <record id="help_ctx_image_qr" model="product.personalizer.help">
+            <field name="name">Image → QR Code</field>
+            <field name="context_key">image_qr</field>
+            <field name="sequence">270</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for adding QR codes.</p>]]></field>
+        </record>
+
+        <!-- Text object menus -->
+        <record id="help_ctx_text_color" model="product.personalizer.help">
+            <field name="name">Text → Color / Fill / Shadow</field>
+            <field name="context_key">text_color</field>
+            <field name="sequence">300</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for text color options.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_fill" model="product.personalizer.help">
+            <field name="name">Text → Fill</field>
+            <field name="context_key">text_fill</field>
+            <field name="sequence">310</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for text fill color.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_stroke" model="product.personalizer.help">
+            <field name="name">Text → Stroke</field>
+            <field name="context_key">text_stroke</field>
+            <field name="sequence">320</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for text stroke.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_shadow" model="product.personalizer.help">
+            <field name="name">Text → Shadow</field>
+            <field name="context_key">text_shadow</field>
+            <field name="sequence">330</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for text shadow.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_edit" model="product.personalizer.help">
+            <field name="name">Text → Edit Content</field>
+            <field name="context_key">text_edit</field>
+            <field name="sequence">340</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for editing text content.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_size" model="product.personalizer.help">
+            <field name="name">Text → Size &amp; Spacing</field>
+            <field name="context_key">text_size</field>
+            <field name="sequence">350</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for text size and spacing.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_fonts" model="product.personalizer.help">
+            <field name="name">Text → Font Family</field>
+            <field name="context_key">text_fonts</field>
+            <field name="sequence">360</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for choosing fonts.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_format" model="product.personalizer.help">
+            <field name="name">Text → Format &amp; Align</field>
+            <field name="context_key">text_format</field>
+            <field name="sequence">370</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for text formatting and alignment.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_transform" model="product.personalizer.help">
+            <field name="name">Text → Position &amp; Rotation</field>
+            <field name="context_key">text_transform</field>
+            <field name="sequence">380</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for rotating and positioning text.</p>]]></field>
+        </record>
+        <record id="help_ctx_text_curved" model="product.personalizer.help">
+            <field name="name">Text → Curved Text</field>
+            <field name="context_key">text_curved</field>
+            <field name="sequence">390</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for curved text.</p>]]></field>
+        </record>
+
+        <!-- Shared object actions -->
+        <record id="help_ctx_object_duplicate" model="product.personalizer.help">
+            <field name="name">Object → Duplicate</field>
+            <field name="context_key">object_duplicate</field>
+            <field name="sequence">400</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for duplicating objects.</p>]]></field>
+        </record>
+        <record id="help_ctx_object_remove" model="product.personalizer.help">
+            <field name="name">Object → Remove</field>
+            <field name="context_key">object_remove</field>
+            <field name="sequence">410</field>
+            <field name="active" eval="False"/>
+            <field name="body"><![CDATA[<p>Help for removing objects.</p>]]></field>
+        </record>
+    </data>
+</odoo>

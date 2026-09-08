@@ -809,6 +809,115 @@ export const fabricEmptyCanvasMixin = {
         return out.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", quality);
     },
 
+    _parsePrintQualityPpi(code) {
+        const match = String(code || "").trim().match(/_(\d+)x(\d+)$/);
+        if (!match) {
+            return [300, 300];
+        }
+        return [Math.max(1, parseInt(match[1], 10)), Math.max(1, parseInt(match[2], 10))];
+    },
+
+    _physicalSizeToPrintPixels(width, height, unit, dpiX = 300, dpiY = null) {
+        const w = Number(width) || 0;
+        const h = Number(height) || 0;
+        if (w <= 0 || h <= 0) {
+            return null;
+        }
+        const dx = Number(dpiX) || 300;
+        const dy = Number(dpiY != null ? dpiY : dx) || dx;
+        const unitKey = String(unit || "in").toLowerCase();
+        let pxW;
+        let pxH;
+        if (unitKey === "mm") {
+            pxW = Math.round((w * dx) / 25.4);
+            pxH = Math.round((h * dy) / 25.4);
+        } else if (unitKey === "cm") {
+            pxW = Math.round((w * dx) / 2.54);
+            pxH = Math.round((h * dy) / 2.54);
+        } else if (unitKey === "px") {
+            pxW = Math.round(w);
+            pxH = Math.round(h);
+        } else {
+            pxW = Math.round(w * dx);
+            pxH = Math.round(h * dy);
+        }
+        // Match server exact-size limit (do not crush 8x10 @ 600x1200 ≈ 12000px).
+        const maxEdge = 20000;
+        if (pxW > maxEdge || pxH > maxEdge) {
+            const scale = maxEdge / Math.max(pxW, pxH);
+            pxW = Math.max(1, Math.round(pxW * scale));
+            pxH = Math.max(1, Math.round(pxH * scale));
+        }
+        return { width: Math.max(1, pxW), height: Math.max(1, pxH), dpiX: dx, dpiY: dy };
+    },
+
+    /**
+     * Clean print sheet at exact product-page size × PPI (no grey frame / size label).
+     */
+    _exportEmptyCanvasExactPrintDataUrl(entries, layout, opts = {}) {
+        const stageW = layout.stageW || layout.canvasW || 394;
+        const stageH = layout.stageH || layout.canvasH || 394;
+        const outW = Math.max(1, Math.round(opts.outputWidth || stageW));
+        const outH = Math.max(1, Math.round(opts.outputHeight || stageH));
+        const side = opts.side || this.active_side || "front";
+        const canvasBg = this._getEmptyCanvasBackground(side);
+
+        // Use per-axis scale so the physical card fills edge-to-edge without letterbox padding.
+        const scaleX = outW / Math.max(stageW, 1);
+        const scaleY = outH / Math.max(stageH, 1);
+
+        const out = document.createElement("canvas");
+        out.width = outW;
+        out.height = outH;
+        const ctx = out.getContext("2d");
+        if (!ctx) {
+            return null;
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.fillStyle = canvasBg;
+        ctx.fillRect(0, 0, outW, outH);
+
+        for (const entry of entries || []) {
+            const fab = entry.canvas;
+            if (!fab) {
+                continue;
+            }
+            const activeBefore = fab.getActiveObject();
+            if (activeBefore) {
+                fab.discardActiveObject();
+                fab.requestRenderAll();
+            }
+
+            // Render fabric canvas at the correct per-axis scale.
+            // We render at scaleX, then stretch vertically by scaleY/scaleX when drawing.
+            const renderScale = scaleX;
+            let drawn = false;
+            if (typeof fab.toCanvasElement === "function") {
+                try {
+                    const layer = fab.toCanvasElement(renderScale);
+                    if (layer && layer.width >= 1 && layer.height >= 1) {
+                        // Draw stretched to exact output size to remove letterbox padding.
+                        ctx.drawImage(layer, 0, 0, outW, outH);
+                        drawn = true;
+                    }
+                } catch (_err) {
+                    drawn = false;
+                }
+            }
+            if (!drawn && fab.lowerCanvasEl) {
+                ctx.drawImage(fab.lowerCanvasEl, 0, 0, outW, outH);
+            }
+            if (activeBefore) {
+                fab.setActiveObject(activeBefore);
+                fab.requestRenderAll();
+            }
+        }
+        const format = (opts.format || "png").toLowerCase();
+        const quality = typeof opts.quality === "number" ? opts.quality : 1;
+        return out.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", quality);
+    },
+
     /**
      * Flat composite canvas for 3D baking (stage pixels, no preview frame padding).
      */

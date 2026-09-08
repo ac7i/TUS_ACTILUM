@@ -8,7 +8,11 @@ available; potracer / Pillow are fallbacks.
 
 import io
 import logging
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 
 try:
     from PIL import Image
@@ -17,6 +21,10 @@ except ImportError:
     pass
 
 _logger = logging.getLogger(__name__)
+
+
+class ExactSizePdfError(Exception):
+    """User-facing failure while building an exact-size print PDF."""
 
 # Trace at print resolution. vtracer handles large images well; keeping this
 # high is the single biggest factor for clarity. Only used to cap absurd sizes.
@@ -177,17 +185,316 @@ def prepare_raster(raw_bytes, crop=True):
     return buf.getvalue()
 
 
-def _print_pixel_size(width, height, unit, dpi=300):
+def parse_print_quality_ppi(code, default=(300, 300)):
+    """Parse product-page print quality codes like good_600x600 → (dpi_x, dpi_y)."""
+    if not code or not isinstance(code, str):
+        return default
+    match = re.search(r"_(\d+)x(\d+)$", code.strip())
+    if not match:
+        return default
+    dpi_x = max(1, int(match.group(1)))
+    dpi_y = max(1, int(match.group(2)))
+    return dpi_x, dpi_y
+
+
+def _print_pixel_size(width, height, unit, dpi=300, dpi_y=None):
+    """Convert physical print size to pixel size.
+
+    ``dpi`` is used for width. ``dpi_y`` defaults to ``dpi`` (isotropic) and is
+    used for height so anisotropic product-page qualities (600×1200) work.
+    """
     if width is None or height is None:
         return None, None
+    dpi_x = float(dpi or 300)
+    dpi_h = float(dpi_y if dpi_y is not None else dpi_x)
     unit_key = str(unit or "in").lower()
     if unit_key == "mm":
-        return max(1, round(width * dpi / 25.4)), max(1, round(height * dpi / 25.4))
+        return (
+            max(1, round(width * dpi_x / 25.4)),
+            max(1, round(height * dpi_h / 25.4)),
+        )
     if unit_key == "cm":
-        return max(1, round(width * dpi / 2.54)), max(1, round(height * dpi / 2.54))
+        return (
+            max(1, round(width * dpi_x / 2.54)),
+            max(1, round(height * dpi_h / 2.54)),
+        )
     if unit_key == "px":
         return max(1, int(width)), max(1, int(height))
-    return max(1, round(width * dpi)), max(1, round(height * dpi))
+    return max(1, round(width * dpi_x)), max(1, round(height * dpi_h))
+
+
+def resize_preview_to_print_png(preview_bytes, output_width, output_height, dpi_x=300, dpi_y=None):
+    """Resize (or retag) a PNG to exact print pixel size with DPI metadata."""
+    from PIL import Image
+
+    dpi_h = dpi_y if dpi_y is not None else dpi_x
+    target_w = int(output_width)
+    target_h = int(output_height)
+    img = Image.open(io.BytesIO(preview_bytes))
+    if img.mode not in ("RGB", "RGBA"):
+        img = img.convert("RGBA")
+    if img.size != (target_w, target_h):
+        resample = getattr(Image, "Resampling", Image).LANCZOS
+        img = img.resize((target_w, target_h), resample)
+    out = io.BytesIO()
+    img.save(out, format="PNG", dpi=(float(dpi_x), float(dpi_h)))
+    return out.getvalue()
+
+
+def _physical_size_to_pdf_points(width, height, unit):
+    """Convert physical print size to PDF page size in points (1 pt = 1/72 in)."""
+    w = float(width)
+    h = float(height)
+    unit_key = str(unit or "in").lower()
+    if unit_key == "mm":
+        return w * 72.0 / 25.4, h * 72.0 / 25.4
+    if unit_key == "cm":
+        return w * 72.0 / 2.54, h * 72.0 / 2.54
+    if unit_key == "px":
+        # Treat pixels as 72 PPI so page size matches pixel count in points.
+        return w, h
+    return w * 72.0, h * 72.0
+
+
+def _flatten_png_for_print_pdf(png_bytes):
+    """Return an opaque RGB PIL image (alpha composited on white)."""
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(png_bytes))
+    if img.mode == "RGBA":
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[3])
+        return background
+    if img.mode != "RGB":
+        return img.convert("RGB")
+    return img
+
+
+def _rgb_image_to_trim_pdf_bytes(img, page_w_pt, page_h_pt, jpeg_quality=95):
+    """Embed RGB image on a PDF page whose MediaBox is the physical trim size.
+
+    Pillow's ``Image.save(..., format="PDF", resolution=dpi)`` sets page size to
+    ``pixels / dpi``. With anisotropic PPI (e.g. 600×1200) that makes an 8×10
+    sheet become 8×20. Always use the physical MediaBox instead.
+    """
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    jpeg_buf = io.BytesIO()
+    img.save(jpeg_buf, format="JPEG", quality=jpeg_quality)
+    jpeg_data = jpeg_buf.getvalue()
+    img_w, img_h = img.size
+    page_w = max(1.0, float(page_w_pt))
+    page_h = max(1.0, float(page_h_pt))
+
+    objects = []
+
+    def _add(payload):
+        objects.append(payload)
+        return len(objects)
+
+    catalog_id = _add(None)
+    pages_id = _add(None)
+    page_id = _add(None)
+    content_id = _add(None)
+    image_id = _add(None)
+
+    # Scale image to fill the physical page (full-bleed), independent of PPI.
+    content_stream = f"q\n{page_w:.4f} 0 0 {page_h:.4f} 0 0 cm\n/Im0 Do\nQ\n".encode("ascii")
+
+    objects[catalog_id - 1] = f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("ascii")
+    objects[pages_id - 1] = (
+        f"<< /Type /Pages /Kids [{page_id} 0 R] /Count 1 >>".encode("ascii")
+    )
+    objects[page_id - 1] = (
+        f"<< /Type /Page /Parent {pages_id} 0 R "
+        f"/MediaBox [0 0 {page_w:.4f} {page_h:.4f}] "
+        f"/Contents {content_id} 0 R "
+        f"/Resources << /XObject << /Im0 {image_id} 0 R >> >> >>"
+    ).encode("ascii")
+    objects[content_id - 1] = (
+        f"<< /Length {len(content_stream)} >>\nstream\n".encode("ascii")
+        + content_stream
+        + b"\nendstream"
+    )
+    objects[image_id - 1] = (
+        (
+            f"<< /Type /XObject /Subtype /Image /Width {img_w} /Height {img_h} "
+            f"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode "
+            f"/Length {len(jpeg_data)} >>\nstream\n"
+        ).encode("ascii")
+        + jpeg_data
+        + b"\nendstream"
+    )
+
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = [0]
+    for idx, obj in enumerate(objects, start=1):
+        offsets.append(out.tell())
+        out.write(f"{idx} 0 obj\n".encode("ascii"))
+        out.write(obj)
+        out.write(b"\nendobj\n")
+    xref_pos = out.tell()
+    out.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    out.write(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        out.write(f"{offset:010d} 00000 n \n".encode("ascii"))
+    out.write(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
+            f"startxref\n{xref_pos}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return out.getvalue()
+
+
+def build_exact_size_print_pdf(
+    png_bytes,
+    width,
+    height,
+    unit="in",
+    dpi_x=300,
+    dpi_y=None,
+    color_mode="rgb",
+):
+    """Build a one-page print PDF at exact physical size from an RGB PNG.
+
+    Flow:
+    1. Flatten alpha onto white.
+    2. Write an RGB PDF whose MediaBox is the physical canvas size (not
+       ``pixels / dpi`` — that breaks anisotropic 600×1200 PPI sheets).
+    3. If ``color_mode`` is ``cmyk``, re-encode with Ghostscript to DeviceCMYK.
+       RGB mode never calls Ghostscript.
+    """
+    if not png_bytes:
+        raise ExactSizePdfError("No image data available for print PDF.")
+
+    dpi_h = float(dpi_y if dpi_y is not None else (dpi_x or 300))
+    dpi_w = float(dpi_x or 300)
+    page_w, page_h = _physical_size_to_pdf_points(width, height, unit)
+    if page_w <= 0 or page_h <= 0:
+        raise ExactSizePdfError("Invalid print page size for PDF export.")
+
+    page_w_pt = max(1, round(page_w, 4))
+    page_h_pt = max(1, round(page_h, 4))
+    use_cmyk = str(color_mode or "rgb").lower() == "cmyk"
+
+    img = _flatten_png_for_print_pdf(png_bytes)
+    rgb_pdf_bytes = _rgb_image_to_trim_pdf_bytes(img, page_w_pt, page_h_pt)
+
+    if not use_cmyk:
+        _logger.info(
+            "Built exact-size PDF: %.2fx%.2f %s @ %sx%s dpi, mode=rgb (%s bytes)",
+            width,
+            height,
+            unit,
+            dpi_w,
+            dpi_h,
+            len(rgb_pdf_bytes),
+        )
+        return rgb_pdf_bytes
+
+    gs = shutil.which("gs")
+    if not gs:
+        raise ExactSizePdfError(
+            "Ghostscript (gs) is required for CMYK print PDF export. "
+            "Install Ghostscript on the server, or set Print Export Color Mode to RGB."
+        )
+
+    pdf_bytes = rgb_pdf_bytes
+    with tempfile.TemporaryDirectory(prefix="tus_exact_pdf_") as tmp:
+        rgb_pdf_path = os.path.join(tmp, "sheet_rgb.pdf")
+        out_pdf_path = os.path.join(tmp, "sheet.pdf")
+        with open(rgb_pdf_path, "wb") as handle:
+            handle.write(rgb_pdf_bytes)
+
+        cmd = [
+            gs,
+            "-dSAFER",
+            "-dBATCH",
+            "-dNOPAUSE",
+            "-dQUIET",
+            "-sDEVICE=pdfwrite",
+            "-dCompatibilityLevel=1.4",
+            "-dAutoRotatePages=/None",
+            f"-dDEVICEWIDTHPOINTS={page_w_pt}",
+            f"-dDEVICEHEIGHTPOINTS={page_h_pt}",
+            "-dFIXEDMEDIA",
+            "-dPDFFitPage",
+            "-sColorConversionStrategy=CMYK",
+            "-dProcessColorModel=/DeviceCMYK",
+            "-sColorConversionStrategyForImages=CMYK",
+            f"-sOutputFile={out_pdf_path}",
+            rgb_pdf_path,
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired as err:
+            raise ExactSizePdfError(
+                "Exact-size PDF generation timed out. Try a lower print quality."
+            ) from err
+        except OSError as err:
+            raise ExactSizePdfError(
+                "Could not run Ghostscript for CMYK export: %s" % err
+            ) from err
+
+        if result.returncode == 0 and os.path.exists(out_pdf_path):
+            with open(out_pdf_path, "rb") as handle:
+                pdf_bytes = handle.read()
+        else:
+            stderr = (result.stderr or b"").decode("utf-8", errors="replace")[:500]
+            _logger.error(
+                "Ghostscript exact-size CMYK PDF failed (code=%s): %s",
+                result.returncode,
+                stderr,
+            )
+            raise ExactSizePdfError(
+                "Ghostscript failed to create a CMYK PDF. "
+                "Check the server Ghostscript install, or use RGB export mode."
+            )
+
+    if not pdf_bytes or not pdf_bytes.startswith(b"%PDF"):
+        raise ExactSizePdfError("Could not produce a valid exact-size PDF.")
+
+    # Guard: never ship a page whose MediaBox drifted from physical size.
+    try:
+        boxes = re.findall(rb"/MediaBox\s*\[\s*([^\]]+)\]", pdf_bytes)
+        if boxes:
+            parts = [float(x) for x in boxes[0].split()]
+            if len(parts) >= 4:
+                box_w = abs(parts[2] - parts[0])
+                box_h = abs(parts[3] - parts[1])
+                if abs(box_w - page_w_pt) > 1.0 or abs(box_h - page_h_pt) > 1.0:
+                    _logger.warning(
+                        "CMYK PDF MediaBox %.2fx%.2f != trim %.2fx%.2f; "
+                        "returning RGB trim PDF with correct page size.",
+                        box_w,
+                        box_h,
+                        page_w_pt,
+                        page_h_pt,
+                    )
+                    pdf_bytes = rgb_pdf_bytes
+                    use_cmyk = False
+    except Exception:
+        _logger.debug("MediaBox validation skipped", exc_info=True)
+
+    _logger.info(
+        "Built exact-size PDF: %.2fx%.2f %s @ %sx%s dpi, mode=%s (%s bytes)",
+        width,
+        height,
+        unit,
+        dpi_w,
+        dpi_h,
+        "cmyk" if use_cmyk else "rgb",
+        len(pdf_bytes),
+    )
+    return pdf_bytes
 
 
 def is_native_vector_svg(svg_text):

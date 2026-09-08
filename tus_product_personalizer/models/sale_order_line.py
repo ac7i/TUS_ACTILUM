@@ -33,6 +33,12 @@ class SaleOrderLine(models.Model):
         string="VDP Rows",
         compute="_compute_vdp_record_count",
     )
+    vdp_print_ready_pdf = fields.Binary(
+        string="VDP Print-Ready PDF",
+        attachment=True,
+        copy=True,
+        help="Pre-rendered high-res vector CMYK print-ready PDF generated at checkout.",
+    )
     empty_canvas_width = fields.Float(string="Canvas Width", copy=True)
     empty_canvas_height = fields.Float(string="Canvas Height", copy=True)
     empty_canvas_unit = fields.Char(string="Canvas Unit", copy=True)

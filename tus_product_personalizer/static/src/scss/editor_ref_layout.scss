@@ -3318,6 +3318,29 @@
 
 // Print Finish panel (customer texture / varnish uploads on selected layer)
 .section_tool_finish {
+    .tus-panel-help-btn {
+        width: 28px;
+        height: 28px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--tus-ref-accent, #4d5038);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        flex: 0 0 auto;
+
+        &:hover {
+            background: var(--tus-ref-accent-soft, rgba(77, 80, 56, 0.1));
+        }
+
+        &.d-none {
+            display: none !important;
+        }
+    }
+
     .fab_finish_panel {
         .tus-texture-file-btn,
         .tus-varnish-file-btn {

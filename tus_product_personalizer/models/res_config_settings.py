@@ -175,3 +175,13 @@ class ResConfigSettings(models.TransientModel):
         related='website_id.personalizer_preview_max_side',
         readonly=False,
     )
+    personalizer_upload_cleanup_enabled = fields.Boolean(
+        string="Cleanup Unused Uploads",
+        related='website_id.personalizer_upload_cleanup_enabled',
+        readonly=False,
+    )
+    personalizer_upload_retention_days = fields.Integer(
+        string="Unused Upload Retention (days)",
+        related='website_id.personalizer_upload_retention_days',
+        readonly=False,
+    )

@@ -1,6 +1,11 @@
 # Server-side background removal (product designer)
 # Print vector conversion (PNG/JPG -> SVG + AI):
 #   sudo apt install libcairo2-dev pkg-config  # required by cairosvg
+# Exact Size / Print-Ready PDF:
+#   RGB mode (default): Pillow only — no Ghostscript needed
+#   CMYK mode: sudo apt install ghostscript  # required binary: gs
+# Multi-side PDF merge:
+#   PyPDF2
 # Note: the "potracer" package imports as "potrace".
 rembg>=2.0.50
 onnxruntime>=1.17.0
@@ -9,3 +14,4 @@ vtracer>=0.6.0
 potracer>=0.0.4
 cairosvg>=2.7.0
 openpyxl>=3.1.0
+PyPDF2>=3.0.0

@@ -145,12 +145,12 @@
                     </setting>
                     <setting id="personalizer_print_color_mode_setting"
                              string="Print Export Color Mode"
-                             help="CMYK converts exported SVG/AI files to print-ready device-cmyk() colors. RGB keeps screen colors in export files.">
+                             help="RGB: exact-size Print-Ready PDF without Ghostscript. CMYK: requires Ghostscript (gs) for Print-Ready PDF; also applies device-cmyk() on SVG/AI exports.">
                         <field name="personalizer_print_color_mode"/>
                     </setting>
                     <setting id="personalizer_upload_limits_setting"
                              string="Artwork Upload Limits"
-                             help="Limits for TIFF/PDF/high-resolution uploads. Originals are retained for production; the editor uses a bounded preview.">
+                             help="Limits for TIFF/PDF/high-resolution uploads. Originals are retained on the filestore for production Download Source; the editor uses a bounded preview. The database stores order data and links, not the large file bytes.">
                         <div class="content-group">
                             <div class="mt8 row">
                                 <label for="personalizer_upload_max_mb" string="Max size (MB)" class="col-lg-3 o_light_label"/>
@@ -167,6 +167,22 @@
                             <div class="text-muted mt8">
                                 TIFF uses the first frame. PDF uses the first page rasterized at 300 DPI.
                                 Extremely large artwork can upload the production file with a lower-resolution editor proxy.
+                                Large source files live on disk (filestore); reverse proxies must allow the max upload size (e.g. 2 GB).
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="personalizer_upload_cleanup_setting"
+                             string="Cleanup Unused Uploads"
+                             help="Scheduled action removes unused designer library uploads (and their filestore originals) older than the retention period. Never deletes files linked to orders or saved customer designs — admin Download Source stays available.">
+                        <field name="personalizer_upload_cleanup_enabled"/>
+                        <div class="content-group mt-2" invisible="not personalizer_upload_cleanup_enabled">
+                            <div class="mt8 row">
+                                <label for="personalizer_upload_retention_days" string="Retention (days)" class="col-lg-3 o_light_label"/>
+                                <field name="personalizer_upload_retention_days" class="col-lg-3"/>
+                            </div>
+                            <div class="text-muted mt8">
+                                Default 90 days. Only unused temporary uploads are deleted.
+                                Confirmed orders and saved designs are never cleaned by this job.
                             </div>
                         </div>
                     </setting>

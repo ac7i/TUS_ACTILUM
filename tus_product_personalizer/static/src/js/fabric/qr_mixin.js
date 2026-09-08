@@ -24,6 +24,9 @@ export const fabricQrMixin = {
         $(ev.currentTarget).addClass("active").attr("aria-selected", "true");
         $section.find(".upload-module-pane").removeClass("active");
         $section.find(`.upload-module-pane.${tab}-pane`).addClass("active");
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
+        }
     },
 
     _onQrColorSwatchClick: function (ev) {

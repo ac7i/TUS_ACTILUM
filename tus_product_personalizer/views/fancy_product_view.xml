@@ -1116,8 +1116,18 @@
                                         </p>
                                         <div t-if="personalizer_config.get('show_finish_texture')" class="tus-finish-texture-block mb-3">
                                             <div class="control pb-2 tus-finish-image-only">
-                                                <label class="form-label fw-bold d-block">Texture (emboss)</label>
-                                                <button type="button" class="btn btn-primary btn-sm tus-texture-file-btn">Upload emboss mask…</button>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <label class="form-label fw-bold d-block mb-0">Texture (emboss)</label>
+                                                    <button type="button"
+                                                            class="tus-btn-icon tus-panel-help-btn"
+                                                            t-if="personalizer_config.get('enable_help', True)"
+                                                            data-help-context="finish_texture"
+                                                            title="Help"
+                                                            aria-label="Help for Texture / Emboss">
+                                                        <i class="fa fa-question-circle" aria-hidden="true"/>
+                                                    </button>
+                                                </div>
+                                                <button type="button" class="btn btn-primary btn-sm tus-texture-file-btn mt-2">Upload emboss mask…</button>
                                                 <button type="button" class="btn btn-link btn-sm tus-texture-file-clear d-none">Clear</button>
                                                 <input type="file" class="d-none tus-texture-file-input"
                                                        accept="image/png,image/jpeg,image/webp"/>
@@ -1140,8 +1150,18 @@
                                         </div>
                                         <div t-if="personalizer_config.get('show_finish_varnish')" class="tus-finish-varnish-block">
                                             <div class="control pb-2">
-                                                <label class="form-label fw-bold d-block">Varnish</label>
-                                                <p class="small text-muted mb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <label class="form-label fw-bold d-block mb-0">Varnish</label>
+                                                    <button type="button"
+                                                            class="tus-btn-icon tus-panel-help-btn"
+                                                            t-if="personalizer_config.get('enable_help', True)"
+                                                            data-help-context="finish_varnish"
+                                                            title="Help"
+                                                            aria-label="Help for Varnish">
+                                                        <i class="fa fa-question-circle" aria-hidden="true"/>
+                                                    </button>
+                                                </div>
+                                                <p class="small text-muted mb-2 mt-2">
                                                     Clear coat on the selected layer (not printed ink).
                                                     Gloss/satin shine appears in 3D without adding a new color.
                                                 </p>

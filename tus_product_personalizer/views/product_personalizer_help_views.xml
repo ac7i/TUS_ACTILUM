@@ -10,8 +10,36 @@
                 <field name="name"/>
                 <field name="context_key"/>
                 <field name="active"/>
-                <field name="share_url" widget="url"/>
+                <field name="share_url" widget="url" optional="show"/>
             </list>
+        </field>
+    </record>
+
+    <record id="view_product_personalizer_help_search" model="ir.ui.view">
+        <field name="name">product.personalizer.help.search</field>
+        <field name="model">product.personalizer.help</field>
+        <field name="arch" type="xml">
+            <search string="Designer Help">
+                <field name="name"/>
+                <field name="context_key"/>
+                <filter string="Active" name="filter_active" domain="[('active', '=', True)]"/>
+                <filter string="Inactive" name="filter_inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="Main Sidebar" name="filter_main_sidebar"
+                        domain="[('context_key', 'in', ['main', 'swap', 'image', 'text', 'shapes', 'clipart', 'textures', 'layers', 'templates', 'finish', 'vdp', 'ai'])]"/>
+                <filter string="Image Menus" name="filter_image_menus"
+                        domain="[('context_key', 'like', 'image_')]"/>
+                <filter string="Text Menus" name="filter_text_menus"
+                        domain="[('context_key', 'like', 'text_')]"/>
+                <filter string="Print Finish" name="filter_finish"
+                        domain="[('context_key', 'in', ['finish', 'finish_texture', 'finish_varnish'])]"/>
+                <filter string="Object Actions" name="filter_object_actions"
+                        domain="[('context_key', 'in', ['object_duplicate', 'object_remove'])]"/>
+                <group>
+                    <filter string="Help Context" name="group_context_key" context="{'group_by': 'context_key'}"/>
+                    <filter string="Active" name="group_active" context="{'group_by': 'active'}"/>
+                </group>
+            </search>
         </field>
     </record>
 
@@ -28,13 +56,13 @@
                         <h1><field name="name" placeholder="Help title"/></h1>
                     </div>
                     <group>
-                        <group>
+                        <group string="Context">
                             <field name="context_key"/>
                             <field name="sequence"/>
+                        </group>
+                        <group string="Media &amp; Share">
                             <field name="video_url" placeholder="https://www.youtube.com/watch?v=..."/>
                             <field name="video_embed_url" readonly="1" invisible="not video_url"/>
-                        </group>
-                        <group>
                             <field name="share_url" widget="url" readonly="1"/>
                             <field name="share_token" invisible="1"/>
                         </group>
@@ -46,7 +74,8 @@
                     </notebook>
                     <group string="Notes" colspan="2">
                         <div colspan="2" class="text-muted">
-                            <p>Only one help record can be active per context (Main, Product, Add Image, etc.). Activating this record will deactivate any other active help for the same context.</p>
+                            <p>Each Help Context maps to one main sidebar item or one Image/Text object tool (e.g. Image → Effects, Text → Font). Only one record can be active per context.</p>
+                            <p>In the designer: the bottom sidebar Help opens content for the active main menu; the object-toolbar Help opens content for the active image/text tool. Empty child contexts fall back to their parent (e.g. Text → Fill → Text → Color → Add Text).</p>
                             <p>The shareable link always shows your latest help content and video after you save. The link itself does not change when you update the video.</p>
                         </div>
                     </group>
@@ -59,12 +88,14 @@
         <field name="name">Designer Help</field>
         <field name="res_model">product.personalizer.help</field>
         <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_context_key': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create designer help content for your customers.
             </p>
             <p>
-                Add text, images, and videos. Only one record can be active at a time.
+                Add one inactive placeholder per menu, then activate and edit HTML/video.
+                Use the Help Context field to target a main sidebar item or an Image/Text object tool.
             </p>
         </field>
     </record>

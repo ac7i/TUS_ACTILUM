@@ -62,6 +62,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         "click #tus-help-btn": "_onHelpButtonClick",
         "click #tus-object-help-btn": "_onObjectHelpButtonClick",
         "click .tus-panel-help-btn": "_onPanelHelpButtonClick",
+        "click .section_tool_color .nav-link": "_onColorHelpTabClick",
+        "focusin .tus-finish-texture-block, .tus-finish-varnish-block": "_onFinishHelpBlockFocus",
+        "click .tus-finish-texture-block, .tus-finish-varnish-block": "_onFinishHelpBlockFocus",
         "click .tus-help-dialog-close": "_onHelpDialogClose",
         "click .tus-help-backdrop": "_onHelpBackdropClick",
         "click .tus-help-copy-link": "_onHelpCopyLink",
@@ -5914,6 +5917,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         const selectedFormat = await this._showFormatSelectionPopup();
         if (!selectedFormat) return; // User canceled
 
+        const isPdfFormat = selectedFormat === "pdf" || selectedFormat === "pdf_print";
+
         return this._runCanvasExportBatch(async () => {
             const sides = ['front', 'back', 'left', 'right'];
             let designedSides = [];
@@ -5934,16 +5939,23 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
                 if (hasDesign) {
                     try {
-                        // Export this side
-                        const dataUrl = await self._exportSideDuringBatch(side, {
+                        const exportOpts = {
                             format: "png",
                             quality: 1,
-                        });
+                            framed: !isPdfFormat,
+                        };
+                        if (isPdfFormat) {
+                            exportOpts.targetDpi = selectedFormat === "pdf_print" ? 600 : 300;
+                            exportOpts.maxSize = selectedFormat === "pdf_print" ? 8192 : 4096;
+                        }
+                        const dataUrl = await self._exportSideDuringBatch(side, exportOpts);
 
                         if (dataUrl) {
+                            const sideSvgText = self._getCleanVectorSvgForSide ? self._getCleanVectorSvgForSide(side) : "";
                             designedSides.push({
                                 side: side,
-                                dataUrl: dataUrl
+                                dataUrl: dataUrl,
+                                svgText: sideSvgText,
                             });
                         }
                     } catch (error) {
@@ -5957,19 +5969,29 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 return;
             }
 
-            // Create a combined canvas
-            const combinedCanvas = document.createElement('canvas');
-            const ctx = combinedCanvas.getContext('2d');
-
             // Load all images first
             const images = await Promise.all(designedSides.map(sideData => {
                 return new Promise((resolve, reject) => {
                     const img = new Image();
-                    img.onload = () => resolve({ side: sideData.side, img: img });
+                    img.onload = () => resolve({ side: sideData.side, img: img, svgText: sideData.svgText });
                     img.onerror = reject;
                     img.src = sideData.dataUrl;
                 });
             }));
+
+            if (selectedFormat === 'pdf') {
+                await this._downloadProofPdf(images);
+                return;
+            }
+
+            if (selectedFormat === 'pdf_print') {
+                await this._downloadPrintReadyPdf(images);
+                return;
+            }
+
+            // Create a combined canvas
+            const combinedCanvas = document.createElement('canvas');
+            const ctx = combinedCanvas.getContext('2d');
 
             // Calculate layout dimensions
             const padding = 50; // Space between images
@@ -7051,13 +7073,13 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
      * traces into SVG/AI. Higher = crisper print output (capped for memory).
      */
     _printSnapshotMultiplier: function (obj) {
-        let base = 4;
+        let base = 2;
         try {
             const rect = obj.getBoundingRect ? obj.getBoundingRect(true, true) : null;
             const longest = rect ? Math.max(rect.width || 0, rect.height || 0) : 0;
             if (longest > 0) {
-                // Aim for ~1600px on the longest edge for a clean trace.
-                base = Math.min(8, Math.max(3, Math.ceil(1600 / longest)));
+                // Aim for ~1000px on the longest edge for clean trace without ballooning payload.
+                base = Math.min(4, Math.max(2, Math.ceil(1000 / longest)));
             }
         } catch (e) {
             // keep default

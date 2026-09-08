@@ -55,6 +55,8 @@ const OBJECT_TOOL_HELP_CONTEXT = {
     replace: "image_replace",
     flip: "image_flip",
     opacity: "image_opacity",
+    duplicate: "object_duplicate",
+    remove: "object_remove",
 };
 
 const PANEL_HELP_CONTEXT = {
@@ -67,23 +69,56 @@ const PANEL_HELP_CONTEXT = {
     layers: "layers",
     templates: "templates",
     finish: "finish",
+    finish_texture: "finish_texture",
+    finish_varnish: "finish_varnish",
     vdp: "vdp",
     ai: "ai",
-    // Image child sections
     image_effects: "image_effects",
     image_remove_bg: "image_remove_bg",
     image_vectorize: "image_vectorize",
     image_replace: "image_replace",
     image_flip: "image_flip",
     image_opacity: "image_opacity",
-    // Text child sections
+    image_transform: "image_transform",
+    image_qr: "image_qr",
     text_color: "text_color",
+    text_fill: "text_fill",
+    text_stroke: "text_stroke",
+    text_shadow: "text_shadow",
     text_edit: "text_edit",
     text_size: "text_size",
     text_fonts: "text_fonts",
     text_format: "text_format",
     text_transform: "text_transform",
     text_curved: "text_curved",
+    object_duplicate: "object_duplicate",
+    object_remove: "object_remove",
+};
+
+/** Parent fallback when a child context has no active help record. */
+const HELP_CONTEXT_PARENT = {
+    finish_texture: "finish",
+    finish_varnish: "finish",
+    image_effects: "image",
+    image_remove_bg: "image",
+    image_vectorize: "image",
+    image_replace: "image",
+    image_flip: "image",
+    image_opacity: "image",
+    image_transform: "image",
+    image_qr: "image",
+    text_fill: "text_color",
+    text_stroke: "text_color",
+    text_shadow: "text_color",
+    text_color: "text",
+    text_edit: "text",
+    text_size: "text",
+    text_fonts: "text",
+    text_format: "text",
+    text_transform: "text",
+    text_curved: "text",
+    object_duplicate: "main",
+    object_remove: "main",
 };
 
 function hasHelpRecord(record) {
@@ -117,14 +152,31 @@ export const fabricHelpMixin = {
     _getHelpContentForContext: function (contextKey) {
         const help = this._getHelpContent();
         const byContext = help.by_context || {};
-        const key = contextKey || "main";
-
-        // Strict 1-to-1 match ONLY. Return content ONLY if configured for this exact key.
-        if (byContext[key]) {
-            return byContext[key];
+        let key = contextKey || "main";
+        const seen = new Set();
+        while (key && !seen.has(key)) {
+            seen.add(key);
+            if (hasHelpRecord(byContext[key])) {
+                return byContext[key];
+            }
+            key = HELP_CONTEXT_PARENT[key] || (key !== "main" ? "main" : null);
         }
-
         return {};
+    },
+
+    _resolveHelpContextKey: function (preferredKey) {
+        const help = this._getHelpContent();
+        const byContext = help.by_context || {};
+        let key = preferredKey || "main";
+        const seen = new Set();
+        while (key && !seen.has(key)) {
+            seen.add(key);
+            if (hasHelpRecord(byContext[key])) {
+                return key;
+            }
+            key = HELP_CONTEXT_PARENT[key] || (key !== "main" ? "main" : null);
+        }
+        return "main";
     },
 
     _isObjectToolbarOpen: function () {
@@ -132,30 +184,30 @@ export const fabricHelpMixin = {
         return $toolbar.length > 0 && !$toolbar.hasClass("d-none");
     },
 
-    _resolveObjectToolHelpContext: function () {
-        const activeTool = this.$(".new_toolbar_container .tool.active");
-        if (!activeTool.length) {
-            return null;
+    _isTextLikeSelection: function () {
+        const obj = this.canvas?.getActiveObject?.();
+        if (!obj) {
+            return false;
         }
-        const panel = String(activeTool.data("panel") || "");
-        if (!panel || panel === "duplicate" || panel === "remove") {
-            return null;
-        }
-        return OBJECT_TOOL_HELP_CONTEXT[panel] || PANEL_HELP_CONTEXT[panel] || panel;
+        const type = String(obj.type || "").toLowerCase();
+        return type.includes("text") || Boolean(obj.tusVdpKey);
     },
 
-    _resolveCurrentHelpContext: function () {
-        if (this._isObjectToolbarOpen()) {
-            const objectContext = this._resolveObjectToolHelpContext();
-            if (objectContext) {
-                return objectContext;
-            }
-        }
-
-        // Return active sidebar panel option (e.g. image, text, swap, shapes, clipart, textures, layers, templates, vdp, ai)
+    /**
+     * Sidebar rail Help (#tus-help-btn): active main menu
+     * (Product, Add Image, QR tab, etc.).
+     */
+    _resolveSidebarHelpContext: function () {
         const activeFab = this.$(".sidebar_options .fab_item.active");
         if (activeFab.length && activeFab.data("option")) {
-            return String(activeFab.data("option"));
+            const option = String(activeFab.data("option"));
+            if (option === "image") {
+                const qrPane = this.$("#upload-module-pane-qr");
+                if (qrPane.length && qrPane.hasClass("active")) {
+                    return "image_qr";
+                }
+            }
+            return PANEL_HELP_CONTEXT[option] || option;
         }
 
         const activeSection = this.$(".section_options.active");
@@ -163,7 +215,8 @@ export const fabricHelpMixin = {
             const classes = (activeSection.attr("class") || "").split(/\s+/);
             for (const cls of classes) {
                 if (cls.startsWith("section_") && cls !== "section_options") {
-                    return cls.replace("section_", "");
+                    const key = cls.replace("section_", "");
+                    return PANEL_HELP_CONTEXT[key] || key;
                 }
             }
         }
@@ -172,46 +225,112 @@ export const fabricHelpMixin = {
         return PANEL_HELP_CONTEXT[panelOption] || panelOption || "main";
     },
 
-    _syncPanelHelpButton: function () {
-        const help = this._getHelpContent();
-        const byContext = help.by_context || {};
-        const sidebarContext = this._resolveCurrentHelpContext();
+    /**
+     * Object dock Help (#tus-object-help-btn): active image/text tool.
+     */
+    _resolveObjectToolHelpContext: function () {
+        const activeTool = this.$(".new_toolbar_container .tool.active");
+        if (!activeTool.length) {
+            return null;
+        }
+        const panel = String(activeTool.data("panel") || "");
+        if (!panel) {
+            return null;
+        }
+        if (panel === "transform") {
+            return this._isTextLikeSelection() ? "text_transform" : "image_transform";
+        }
+        if (panel === "color") {
+            const activeTab =
+                this.$(".section_tool_color .nav-link.active").attr("href") || "#fill";
+            if (String(activeTab).includes("stroke")) {
+                return "text_stroke";
+            }
+            if (String(activeTab).includes("shadow")) {
+                return "text_shadow";
+            }
+            return "text_fill";
+        }
+        if (panel === "finish") {
+            // Texture / Varnish are siblings in one panel — use last focused block,
+            // else parent "finish". Inline help buttons also set data-help-context.
+            if (this._finishHelpSubContext === "finish_texture"
+                || this._finishHelpSubContext === "finish_varnish") {
+                return this._finishHelpSubContext;
+            }
+            return "finish";
+        }
+        return OBJECT_TOOL_HELP_CONTEXT[panel] || PANEL_HELP_CONTEXT[panel] || panel;
+    },
 
+    _onFinishHelpBlockFocus: function (ev) {
+        const $block = $(ev.currentTarget).closest(
+            ".tus-finish-texture-block, .tus-finish-varnish-block"
+        );
+        if ($block.hasClass("tus-finish-texture-block")) {
+            this._finishHelpSubContext = "finish_texture";
+        } else if ($block.hasClass("tus-finish-varnish-block")) {
+            this._finishHelpSubContext = "finish_varnish";
+        }
+        if (typeof this._syncPanelHelpButton === "function") {
+            this._syncPanelHelpButton();
+        }
+    },
+
+    /** @deprecated use _resolveSidebarHelpContext / _resolveObjectToolHelpContext */
+    _resolveCurrentHelpContext: function () {
+        if (this._isObjectToolbarOpen()) {
+            const objectContext = this._resolveObjectToolHelpContext();
+            if (objectContext) {
+                return objectContext;
+            }
+        }
+        return this._resolveSidebarHelpContext();
+    },
+
+    _syncPanelHelpButton: function () {
+        const byContext = this._getHelpContent().by_context || {};
+
+        // Optional legacy panel help icons (if any markup still exists)
+        const sidebarContext = this._resolveSidebarHelpContext();
         this.$(".tus-panel-help-btn").each((idx, btn) => {
             const $btn = $(btn);
             const explicit = $btn.attr("data-help-context");
-            const contextKey = explicit || sidebarContext;
-            const record = contextKey ? byContext[contextKey] : null;
-            $btn.toggleClass("d-none", !hasHelpRecord(record));
+            const resolved = this._resolveHelpContextKey(explicit || sidebarContext);
+            $btn.toggleClass("d-none", !hasHelpRecord(byContext[resolved]));
         });
 
-        // Object toolbar help — always visible at bottom while effects/tools rail is open
-        this.$("#tus-object-help-btn").toggleClass("d-none", !this._isObjectToolbarOpen());
+        const objectContext = this._resolveObjectToolHelpContext();
+        const objectHelp = objectContext
+            ? this._getHelpContentForContext(objectContext)
+            : {};
+        this.$("#tus-object-help-btn").toggleClass(
+            "d-none",
+            !this._isObjectToolbarOpen() || !hasHelpRecord(objectHelp)
+        );
 
-        // Main rail help: prefer active sidebar context, fall back to "main"
-        const railContext = this._isObjectToolbarOpen()
-            ? (this.$(".sidebar_options .fab_item.active").data("option") || "main")
-            : sidebarContext;
-        const contextHelp = byContext[railContext] || {};
-        const mainHelp = byContext.main || {};
-        const railHelp = hasHelpRecord(contextHelp) ? contextHelp : mainHelp;
-        this.$("#tus-help-btn").toggleClass("d-none", !hasHelpRecord(railHelp));
+        const railResolved = this._resolveHelpContextKey(sidebarContext);
+        this.$("#tus-help-btn").toggleClass(
+            "d-none",
+            !hasHelpRecord(byContext[railResolved])
+        );
     },
 
     _onHelpButtonClick: function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
-        const contextKey = this._resolveCurrentHelpContext();
-        const help = this._getHelpContent();
-        const byContext = help.by_context || {};
-        const contextHelp = byContext[contextKey] || {};
-        this._openHelpDialog(hasHelpRecord(contextHelp) ? contextKey : "main");
+        // Existing bottom sidebar Help → active main menu (e.g. Product / swap)
+        const contextKey = this._resolveHelpContextKey(this._resolveSidebarHelpContext());
+        this._openHelpDialog(contextKey);
     },
 
     _onObjectHelpButtonClick: function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
-        const contextKey = this._resolveObjectToolHelpContext() || "finish";
+        // Existing object-toolbar Help → active image/text tool
+        const contextKey = this._resolveHelpContextKey(
+            this._resolveObjectToolHelpContext() || this._resolveSidebarHelpContext()
+        );
         this._openHelpDialog(contextKey);
     },
 
@@ -219,8 +338,19 @@ export const fabricHelpMixin = {
         ev.preventDefault();
         ev.stopPropagation();
         const explicit = $(ev.currentTarget).attr("data-help-context");
-        const contextKey = explicit || this._resolveCurrentHelpContext();
+        const contextKey = this._resolveHelpContextKey(
+            explicit || this._resolveSidebarHelpContext()
+        );
         this._openHelpDialog(contextKey);
+    },
+
+    _onColorHelpTabClick: function () {
+        // Let Bootstrap switch the tab, then refresh object-help context.
+        setTimeout(() => {
+            if (typeof this._syncPanelHelpButton === "function") {
+                this._syncPanelHelpButton();
+            }
+        }, 0);
     },
 
     _onHelpDialogClose: function (ev) {
@@ -235,7 +365,8 @@ export const fabricHelpMixin = {
     },
 
     _openHelpDialog: function (contextKey) {
-        const help = this._getHelpContentForContext(contextKey || "main");
+        const resolvedKey = this._resolveHelpContextKey(contextKey || "main");
+        const help = this._getHelpContentForContext(resolvedKey);
         const $dialog = $(".tus-help-dialog");
         const $title = $dialog.find(".tus-help-dialog-title");
         const $videoWrap = $dialog.find(".tus-help-video-wrap");
@@ -250,7 +381,7 @@ export const fabricHelpMixin = {
         $copyBtn.toggleClass("d-none", !help.share_url);
         $dialog.find(".tus-help-dialog-footer").toggleClass("d-none", !help.share_url);
         $dialog.find(".tus-help-share-url").val(help.share_url || "");
-        $dialog.data("help-context", contextKey || "main");
+        $dialog.data("help-context", resolvedKey);
 
         if (help.body) {
             $htmlContent.html(help.body);

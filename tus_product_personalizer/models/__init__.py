@@ -1,6 +1,7 @@
 from . import product_product
 from . import res_partner_design
 from . import res_partner
+from . import canvas_image_cleanup
 from . import orderline_design_upload
 from . import sale_order_line
 from . import order_imprint_design

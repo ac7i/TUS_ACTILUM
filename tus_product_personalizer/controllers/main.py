@@ -5,9 +5,10 @@ import os
 import subprocess
 import tempfile
 
-from odoo import fields, http
-from odoo.http import request
+from odoo import _, fields, http
+from odoo.http import content_disposition, request
 from odoo.tools.image import image_data_uri
+from odoo.exceptions import UserError, AccessError
 
 from odoo.addons.tus_product_personalizer.models.finish_constants import (
     DEFAULT_FOIL_METAL,
@@ -127,9 +128,6 @@ class ProductDesigner(http.Controller):
         margin_mm = 0.0
         if margins:
             try:
-                from odoo.addons.tus_product_personalizer.models.empty_canvas_constants import (
-                    normalize_empty_canvas_margin_mm,
-                )
                 first_side = next(iter(margins.values()), None)
                 margin_mm = normalize_empty_canvas_margin_mm(first_side)
             except Exception:
@@ -672,10 +670,33 @@ class ProductDesigner(http.Controller):
                 uom_by_name[key] = uom.id
         return palette_by_code, uom_by_name, cmyk_by_code
 
+    def _normalize_fill_color(self, fill):
+        """Return a string color for palette/CMYK lookups; ignore gradient dicts.
+
+        Design templates / Fabric can send fill as a gradient object
+        ``{type, colorStops: [{offset, color}, ...]}`` which is unhashable and
+        cannot be stored on Char fields like imprint_colors.
+        """
+        if fill is None or fill is False:
+            return False
+        if isinstance(fill, dict):
+            stops = fill.get('colorStops') or fill.get('color_stops') or []
+            for stop in stops:
+                if isinstance(stop, dict) and stop.get('color'):
+                    color = stop.get('color')
+                    if isinstance(color, str) and color.strip():
+                        return color.strip()
+            return False
+        if isinstance(fill, (list, tuple)):
+            return False
+        text = str(fill).strip()
+        return text or False
+
     def _resolve_imprint_cmyk(self, fill, imprint_cmyk=None, cmyk_by_code=None):
         """Return CMYK display string for an imprint color."""
-        if imprint_cmyk:
+        if imprint_cmyk and isinstance(imprint_cmyk, str):
             return imprint_cmyk
+        fill = self._normalize_fill_color(fill)
         if fill and cmyk_by_code and fill in cmyk_by_code:
             return cmyk_by_code[fill]
         if fill:
@@ -687,8 +708,11 @@ class ProductDesigner(http.Controller):
             normalized = normalize_hex(fill)
             if normalized and cmyk_by_code and normalized in cmyk_by_code:
                 return cmyk_by_code[normalized]
-            c, m, y, k = hex_to_cmyk_percent(fill)
-            return format_cmyk_display(c, m, y, k)
+            try:
+                c, m, y, k = hex_to_cmyk_percent(fill)
+                return format_cmyk_display(c, m, y, k)
+            except Exception:
+                return False
         return False
 
     def _create_line_designs(
@@ -709,7 +733,12 @@ class ProductDesigner(http.Controller):
             print_w = obj.get('width') or 0.0
             print_h = obj.get('height') or 0.0
             print_unit = obj.get('unit') or 'in'
-            if not obj.get('empty_canvas') and len(canvas_vals_list) == 1:
+            # Product-page canvas size is authoritative for empty-canvas orders.
+            if line.empty_canvas_width and line.empty_canvas_height:
+                print_w = float(line.empty_canvas_width)
+                print_h = float(line.empty_canvas_height)
+                print_unit = line.empty_canvas_unit or print_unit or 'in'
+            elif not obj.get('empty_canvas') and len(canvas_vals_list) == 1:
                 print_w = canvas_vals_list[0].get('width') or print_w
                 print_h = canvas_vals_list[0].get('height') or print_h
                 print_unit = canvas_vals_list[0].get('unit') or print_unit
@@ -727,13 +756,17 @@ class ProductDesigner(http.Controller):
                         'texture_price': float(side_texture.get('price') or 0.0),
                     }
 
-            design_rec = request.env['orderline.design.upload'].sudo().create({
+            design_rec = request.env['orderline.design.upload'].sudo().with_context(
+                image_no_postprocess=True,
+            ).create({
                 'order_line': line.id,
                 'order_id': line.order_id.id,
                 'name': f"{obj.get('side', '')}_{line.name}",
                 'uploaded_type': side,
                 'uploaded_attachment': self._prepare_design_attachment(obj.get('data'))
                 if obj.get('data') else False,
+                'print_sheet_image': self._prepare_print_sheet_attachment(obj.get('print_data'))
+                if obj.get('print_data') else False,
                 'print_width': print_w,
                 'print_height': print_h,
                 'print_unit': print_unit,
@@ -754,12 +787,13 @@ class ProductDesigner(http.Controller):
             for d in canvas_vals_list:
                 d['unit'] = unit
                 imprint_attr = {k: v for k, v in d.items() if k != 'element_image'}
+                fill = self._normalize_fill_color(d.get('fill'))
                 vals = {
                     'design_id': design_rec.id,
                     'imprint_design_attribute': imprint_attr,
-                    'imprint_colors': d.get('fill'),
+                    'imprint_colors': fill or False,
                     'imprint_cmyk': self._resolve_imprint_cmyk(
-                        d.get('fill'),
+                        fill,
                         d.get('imprint_cmyk'),
                         cmyk_by_code,
                     ),
@@ -770,7 +804,6 @@ class ProductDesigner(http.Controller):
                     'imprint_height': d.get('height', 0.0),
                     **self._finish_vals_from_canvas_val(d),
                 }
-                fill = d.get('fill')
                 if fill and fill in palette_by_code:
                     vals['printable_color_id'] = palette_by_code[fill]
                 if unit:
@@ -2648,10 +2681,26 @@ class ProductDesigner(http.Controller):
         if write_err:
             return write_err
         record = request.env['canvas.image'].sudo().browse(canvas_image)
-        if record.exists():
-            record.unlink()
-            return {'success': True}
-        return {'success': False, 'error': 'Image not found'}
+        if not record.exists():
+            return {'success': False, 'error': 'Image not found'}
+        # Keep originals needed for admin Download Source on orders / saved designs.
+        if record._is_upload_protected():
+            return {
+                'success': False,
+                'error': 'This upload is linked to an order or saved design and cannot be deleted.',
+            }
+        original = record.original_attachment_id
+        original_id = original.id if original else False
+        record.unlink()
+        if original_id:
+            att = request.env['ir.attachment'].sudo().browse(original_id)
+            if att.exists() and not request.env['canvas.image'].sudo().search_count([
+                ('original_attachment_id', '=', original_id),
+            ]):
+                _canvas_ids, protected_atts = request.env['canvas.image'].sudo()._gather_protected_upload_refs()
+                if original_id not in protected_atts:
+                    att.unlink()
+        return {'success': True}
 
     @http.route('/shop/buy/now', type='json', auth='public', website=True,csrf=False)
     def buy_now_custom_multi(self, items, designs_by_color=None, **kw):
@@ -3179,6 +3228,48 @@ class ProductDesigner(http.Controller):
         except Exception as err:
             _logger.warning('Could not resize design attachment: %s', err)
         return base64.b64encode(binary)
+
+    def _prepare_print_sheet_attachment(self, data_uri):
+        """Store full-resolution print sheet (no 1024 preview downscale)."""
+        binary = self.convert_odoo_compitable(data_uri)
+        if not binary:
+            return False
+        return base64.b64encode(binary)
+
+    @http.route(
+        ["/tus_personalizer/design/<int:design_id>/exact_size_pdf"],
+        type="http",
+        auth="user",
+        methods=["GET"],
+        csrf=False,
+    )
+    def download_design_exact_size_pdf(self, design_id, **kw):
+        """Stream exact-size print PDF (CMYK/RGB per website print color mode)."""
+        design = request.env["orderline.design.upload"].browse(int(design_id))
+        if not design.exists():
+            return request.not_found()
+        try:
+            design.check_access("read")
+        except AccessError:
+            return request.make_response(_("Access denied"), status=403)
+
+        try:
+            pdf_bytes, *_rest = design._build_exact_size_pdf_bytes()
+        except UserError as err:
+            return request.make_response(str(err), status=400)
+        except Exception:
+            _logger.exception("Exact-size PDF download failed for design %s", design_id)
+            return request.make_response(_("Could not generate exact-size PDF."), status=500)
+
+        filename = design._download_filename("pdf")
+        headers = [
+            ("Content-Type", "application/pdf"),
+            ("Content-Length", str(len(pdf_bytes))),
+            ("Content-Disposition", content_disposition(filename)),
+            ("X-Content-Type-Options", "nosniff"),
+            ("Cache-Control", "no-store"),
+        ]
+        return request.make_response(pdf_bytes, headers=headers)
 
     @http.route('/tus_personalizer/empty_canvas/presets', type='json', auth='public', website=True, csrf=False)
     def empty_canvas_presets(self, product_tmpl_id, **kw):
