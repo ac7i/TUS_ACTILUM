@@ -2,6 +2,10 @@
 
 import { _t } from "@web/core/l10n/translation";
 import { normalizeDesignArea } from "../design_area_shapes";
+import {
+    PRINT_EXPORT_MAX_EDGE,
+    PRINT_EXPORT_MAX_MEGAPIXELS,
+} from "./constants";
 
 const DEFAULT_EMPTY_CANVAS_FINISH = "transparent";
 const DEFAULT_EMPTY_CANVAS_PRINT_QUALITY = "good_600x600";
@@ -841,10 +845,19 @@ export const fabricEmptyCanvasMixin = {
             pxW = Math.round(w * dx);
             pxH = Math.round(h * dy);
         }
-        // Match server exact-size limit (do not crush 8x10 @ 600x1200 ≈ 12000px).
-        const maxEdge = 20000;
-        if (pxW > maxEdge || pxH > maxEdge) {
-            const scale = maxEdge / Math.max(pxW, pxH);
+        // Match server resolve_print_raster_size budget (never hard-fail).
+        let scale = 1;
+        const maxEdge = Number(PRINT_EXPORT_MAX_EDGE) || 16384;
+        const maxMegapixels = Number(PRINT_EXPORT_MAX_MEGAPIXELS) || 100;
+        const maxPixels = maxMegapixels * 1000000;
+        const longest = Math.max(pxW, pxH);
+        if (maxEdge > 0 && longest > maxEdge) {
+            scale = Math.min(scale, maxEdge / longest);
+        }
+        if (maxPixels > 0 && pxW * pxH > maxPixels) {
+            scale = Math.min(scale, Math.sqrt(maxPixels / (pxW * pxH)));
+        }
+        if (scale < 1) {
             pxW = Math.max(1, Math.round(pxW * scale));
             pxH = Math.max(1, Math.round(pxH * scale));
         }

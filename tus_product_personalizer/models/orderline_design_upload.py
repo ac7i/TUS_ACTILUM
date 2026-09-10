@@ -310,8 +310,9 @@ class OrderlineDesignUpload(models.Model):
     def _build_exact_size_png_bytes(self):
         """Build PNG bytes at product-page size × PPI (with DPI metadata)."""
         from odoo.addons.tus_product_personalizer.utils.print_vector import (
-            _print_pixel_size,
+            preview_source_size,
             resize_preview_to_print_png,
+            resolve_print_raster_size,
         )
 
         self.ensure_one()
@@ -321,24 +322,49 @@ class OrderlineDesignUpload(models.Model):
 
         width, height, unit = self._resolve_exact_print_size()
         dpi_x, dpi_y = self._resolve_exact_print_ppi()
-        px_w, px_h = _print_pixel_size(width, height, unit, dpi=dpi_x, dpi_y=dpi_y)
-        if not px_w or not px_h:
+        raw = base64.b64decode(source)
+        try:
+            source_size = preview_source_size(raw)
+        except Exception:
+            source_size = None
+        resolved = resolve_print_raster_size(
+            width,
+            height,
+            unit,
+            dpi_x=dpi_x,
+            dpi_y=dpi_y,
+            source_size=source_size,
+        )
+        if not resolved:
             raise UserError(_("Could not compute print pixel size for this design."))
-        max_edge = 20000
-        if px_w > max_edge or px_h > max_edge:
-            raise UserError(_(
-                "Exact-size export is too large (%(w)s × %(h)s px). "
-                "Reduce canvas size or print quality."
-            ) % {"w": px_w, "h": px_h})
+        px_w, px_h, eff_dpi_x, eff_dpi_y, capped = resolved
+        if capped:
+            _logger.info(
+                "Exact-size PNG raster capped for design %s: "
+                "requested %sx%s ppi -> effective %.1fx%.1f ppi (%sx%s px)",
+                self.id,
+                dpi_x,
+                dpi_y,
+                eff_dpi_x,
+                eff_dpi_y,
+                px_w,
+                px_h,
+            )
 
         try:
-            return resize_preview_to_print_png(
-                base64.b64decode(source),
-                output_width=px_w,
-                output_height=px_h,
-                dpi_x=dpi_x,
-                dpi_y=dpi_y,
-            ), px_w, px_h, dpi_x, dpi_y
+            return (
+                resize_preview_to_print_png(
+                    raw,
+                    output_width=px_w,
+                    output_height=px_h,
+                    dpi_x=eff_dpi_x,
+                    dpi_y=eff_dpi_y,
+                ),
+                px_w,
+                px_h,
+                eff_dpi_x,
+                eff_dpi_y,
+            )
         except Exception as err:
             _logger.exception("Exact-size PNG export failed for design %s", self.id)
             raise UserError(_(
@@ -350,21 +376,63 @@ class OrderlineDesignUpload(models.Model):
         from odoo.addons.tus_product_personalizer.utils.print_vector import (
             ExactSizePdfError,
             build_exact_size_print_pdf,
+            preview_source_size,
+            resize_preview_to_print_rgb,
+            resolve_print_raster_size,
         )
 
         self.ensure_one()
-        png_bytes, px_w, px_h, dpi_x, dpi_y = self._build_exact_size_png_bytes()
+        source = self.print_sheet_image or self.uploaded_attachment
+        if not source:
+            raise UserError(_("No design image available to export at exact size."))
+
         width, height, unit = self._resolve_exact_print_size()
+        dpi_x, dpi_y = self._resolve_exact_print_ppi()
+        raw = base64.b64decode(source)
+        try:
+            source_size = preview_source_size(raw)
+        except Exception:
+            source_size = None
+        resolved = resolve_print_raster_size(
+            width,
+            height,
+            unit,
+            dpi_x=dpi_x,
+            dpi_y=dpi_y,
+            source_size=source_size,
+        )
+        if not resolved:
+            raise UserError(_("Could not compute print pixel size for this design."))
+        px_w, px_h, eff_dpi_x, eff_dpi_y, capped = resolved
+        if capped:
+            _logger.info(
+                "Exact-size PDF raster capped for design %s: "
+                "requested %sx%s ppi -> effective %.1fx%.1f ppi (%sx%s px)",
+                self.id,
+                dpi_x,
+                dpi_y,
+                eff_dpi_x,
+                eff_dpi_y,
+                px_w,
+                px_h,
+            )
+
         color_mode = self._get_print_color_mode()
         try:
+            rgb_image = resize_preview_to_print_rgb(
+                raw,
+                output_width=px_w,
+                output_height=px_h,
+                flatten_alpha=True,
+            )
             pdf_bytes = build_exact_size_print_pdf(
-                png_bytes,
                 width=width,
                 height=height,
                 unit=unit,
-                dpi_x=dpi_x,
-                dpi_y=dpi_y,
+                dpi_x=eff_dpi_x,
+                dpi_y=eff_dpi_y,
                 color_mode=color_mode,
+                rgb_image=rgb_image,
             )
         except ExactSizePdfError as err:
             raise UserError(str(err)) from err
@@ -373,7 +441,7 @@ class OrderlineDesignUpload(models.Model):
             raise UserError(_(
                 "Could not generate exact-size PDF for this design: %s"
             ) % err) from err
-        return pdf_bytes, px_w, px_h, dpi_x, dpi_y, width, height, unit, color_mode
+        return pdf_bytes, px_w, px_h, eff_dpi_x, eff_dpi_y, width, height, unit, color_mode
 
     def _download_filename(self, extension="pdf"):
         """Static download name (e.g. print_preview.pdf)."""

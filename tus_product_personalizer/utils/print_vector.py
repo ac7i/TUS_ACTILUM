@@ -30,6 +30,12 @@ class ExactSizePdfError(Exception):
 # high is the single biggest factor for clarity. Only used to cap absurd sizes.
 MAX_TRACE_PIXELS = 2600
 
+# Memory-safe budget for exact-size print rasters (PDF/PNG export).
+# Physical PDF MediaBox stays at the requested mm/in; only the embedded
+# pixel count is capped so large-format × high-PPI jobs do not OOM.
+PRINT_EXPORT_MAX_MEGAPIXELS = 100
+PRINT_EXPORT_MAX_EDGE = 16384
+
 # Pixels at/above this on every channel are treated as "white" background.
 WHITE_THRESHOLD = 244
 # Pixels with alpha below this are treated as already transparent.
@@ -223,19 +229,134 @@ def _print_pixel_size(width, height, unit, dpi=300, dpi_y=None):
     return max(1, round(width * dpi_x)), max(1, round(height * dpi_h))
 
 
-def resize_preview_to_print_png(preview_bytes, output_width, output_height, dpi_x=300, dpi_y=None):
-    """Resize (or retag) a PNG to exact print pixel size with DPI metadata."""
+def _physical_size_to_inches(width, height, unit):
+    """Convert physical print size to inches (for effective PPI)."""
+    w = float(width)
+    h = float(height)
+    unit_key = str(unit or "in").lower()
+    if unit_key == "mm":
+        return w / 25.4, h / 25.4
+    if unit_key == "cm":
+        return w / 2.54, h / 2.54
+    if unit_key == "px":
+        # Treat px as 72 PPI so inches match PDF point mapping.
+        return w / 72.0, h / 72.0
+    return w, h
+
+
+def resolve_print_raster_size(
+    width,
+    height,
+    unit,
+    dpi_x=300,
+    dpi_y=None,
+    source_size=None,
+    max_megapixels=PRINT_EXPORT_MAX_MEGAPIXELS,
+    max_edge=PRINT_EXPORT_MAX_EDGE,
+):
+    """Resolve embed pixel size for exact-size export (never hard-fails).
+
+    Order:
+    1. Ideal pixels from physical size × requested PPI.
+    2. Do not upscale beyond ``source_size`` when provided.
+    3. Scale down proportionally to fit ``max_megapixels`` and ``max_edge``.
+    4. Effective PPI = final pixels ÷ physical inches (for DPI tags / logs).
+
+    PDF MediaBox must still use the original physical ``width``/``height``.
+    """
+    dpi_w = float(dpi_x or 300)
+    dpi_h = float(dpi_y if dpi_y is not None else dpi_w)
+    ideal_w, ideal_h = _print_pixel_size(width, height, unit, dpi=dpi_w, dpi_y=dpi_h)
+    if not ideal_w or not ideal_h:
+        return None
+
+    out_w = int(ideal_w)
+    out_h = int(ideal_h)
+    capped = False
+
+    if source_size:
+        src_w = max(1, int(source_size[0]))
+        src_h = max(1, int(source_size[1]))
+        if out_w > src_w or out_h > src_h:
+            scale = min(src_w / out_w, src_h / out_h)
+            out_w = max(1, int(round(out_w * scale)))
+            out_h = max(1, int(round(out_h * scale)))
+            capped = True
+
+    max_px = int(max_megapixels or 0) * 1_000_000
+    edge_cap = int(max_edge or 0)
+    scale_budget = 1.0
+    if edge_cap > 0:
+        longest = max(out_w, out_h)
+        if longest > edge_cap:
+            scale_budget = min(scale_budget, edge_cap / float(longest))
+    if max_px > 0 and (out_w * out_h) > max_px:
+        scale_budget = min(scale_budget, (max_px / float(out_w * out_h)) ** 0.5)
+    if scale_budget < 1.0:
+        out_w = max(1, int(round(out_w * scale_budget)))
+        out_h = max(1, int(round(out_h * scale_budget)))
+        capped = True
+
+    inches_w, inches_h = _physical_size_to_inches(width, height, unit)
+    eff_dpi_x = float(out_w) / inches_w if inches_w > 0 else dpi_w
+    eff_dpi_y = float(out_h) / inches_h if inches_h > 0 else dpi_h
+
+    return out_w, out_h, eff_dpi_x, eff_dpi_y, capped
+
+
+def preview_source_size(preview_bytes):
+    """Return (width, height) of preview image bytes without full decode work."""
     from PIL import Image
 
-    dpi_h = dpi_y if dpi_y is not None else dpi_x
-    target_w = int(output_width)
-    target_h = int(output_height)
+    img = Image.open(io.BytesIO(preview_bytes))
+    return img.size
+
+
+def resize_preview_to_print_rgb(
+    preview_bytes,
+    output_width,
+    output_height,
+    flatten_alpha=True,
+):
+    """Resize preview to print pixels and return a PIL image.
+
+    When ``flatten_alpha`` is True (PDF path), returns opaque RGB.
+    When False (PNG path), preserves RGBA when present.
+    """
+    from PIL import Image
+
+    target_w = max(1, int(output_width))
+    target_h = max(1, int(output_height))
     img = Image.open(io.BytesIO(preview_bytes))
     if img.mode not in ("RGB", "RGBA"):
-        img = img.convert("RGBA")
+        img = img.convert("RGBA" if "A" in (img.mode or "") else "RGB")
     if img.size != (target_w, target_h):
         resample = getattr(Image, "Resampling", Image).LANCZOS
         img = img.resize((target_w, target_h), resample)
+    if flatten_alpha:
+        if img.mode == "RGBA":
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            return background
+        if img.mode != "RGB":
+            return img.convert("RGB")
+        return img
+    if img.mode not in ("RGB", "RGBA"):
+        return img.convert("RGBA")
+    return img
+
+
+def resize_preview_to_print_png(preview_bytes, output_width, output_height, dpi_x=300, dpi_y=None):
+    """Resize (or retag) a PNG to exact print pixel size with DPI metadata."""
+    dpi_h = dpi_y if dpi_y is not None else dpi_x
+    img = resize_preview_to_print_rgb(
+        preview_bytes,
+        output_width,
+        output_height,
+        flatten_alpha=False,
+    )
+    if img.mode not in ("RGB", "RGBA"):
+        img = img.convert("RGBA")
     out = io.BytesIO()
     img.save(out, format="PNG", dpi=(float(dpi_x), float(dpi_h)))
     return out.getvalue()
@@ -349,25 +470,28 @@ def _rgb_image_to_trim_pdf_bytes(img, page_w_pt, page_h_pt, jpeg_quality=95):
 
 
 def build_exact_size_print_pdf(
-    png_bytes,
-    width,
-    height,
+    png_bytes=None,
+    width=None,
+    height=None,
     unit="in",
     dpi_x=300,
     dpi_y=None,
     color_mode="rgb",
+    rgb_image=None,
 ):
-    """Build a one-page print PDF at exact physical size from an RGB PNG.
+    """Build a one-page print PDF at exact physical size from an RGB image.
 
     Flow:
-    1. Flatten alpha onto white.
+    1. Accept either ``rgb_image`` (PIL RGB) or ``png_bytes`` (flattened).
     2. Write an RGB PDF whose MediaBox is the physical canvas size (not
        ``pixels / dpi`` — that breaks anisotropic 600×1200 PPI sheets).
     3. If ``color_mode`` is ``cmyk``, re-encode with Ghostscript to DeviceCMYK.
        RGB mode never calls Ghostscript.
     """
-    if not png_bytes:
+    if rgb_image is None and not png_bytes:
         raise ExactSizePdfError("No image data available for print PDF.")
+    if width is None or height is None:
+        raise ExactSizePdfError("Invalid print page size for PDF export.")
 
     dpi_h = float(dpi_y if dpi_y is not None else (dpi_x or 300))
     dpi_w = float(dpi_x or 300)
@@ -379,7 +503,12 @@ def build_exact_size_print_pdf(
     page_h_pt = max(1, round(page_h, 4))
     use_cmyk = str(color_mode or "rgb").lower() == "cmyk"
 
-    img = _flatten_png_for_print_pdf(png_bytes)
+    if rgb_image is not None:
+        img = rgb_image
+        if getattr(img, "mode", None) != "RGB":
+            img = img.convert("RGB")
+    else:
+        img = _flatten_png_for_print_pdf(png_bytes)
     rgb_pdf_bytes = _rgb_image_to_trim_pdf_bytes(img, page_w_pt, page_h_pt)
 
     if not use_cmyk:

@@ -140,6 +140,14 @@ export const TUS_FABRIC_CUSTOM_PROPS = [
 /** Minimum effective print resolution for uploaded raster images. */
 export const MIN_UPLOAD_DPI = 150;
 
+/**
+ * Memory-safe exact-size print raster budget (must match Python
+ * PRINT_EXPORT_MAX_MEGAPIXELS / PRINT_EXPORT_MAX_EDGE in print_vector.py).
+ * Physical PDF page size stays at requested mm; only pixel count is capped.
+ */
+export const PRINT_EXPORT_MAX_MEGAPIXELS = 100;
+export const PRINT_EXPORT_MAX_EDGE = 16384;
+
 /** RPC routes blocked for view-only shared design guests. */
 export const SHARE_WRITE_ROUTES = [
     "/custom/design/save",
