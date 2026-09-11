@@ -383,11 +383,13 @@ export class TusPBRViewer {
         );
         material.bumpMap = dispTex || normalTex;
         material.bumpScale = hasEmboss ? Math.max(0.005, reliefScale * 0.4) : 0.001;
-        // Paper cardstock roughness: 0.78 for natural light response
-        material.roughness = hasVarnish ? pbr.baseRoughness : 0.78;
+        // Roughness map already encodes matte substrate + shiny varnish regions.
+        // Keep base roughness near 1 so the map alone controls sheen (no global gloss).
+        material.roughness = hasVarnish ? 1.0 : 0.78;
         material.roughnessMap = roughTex;
         material.metalnessMap = metalTex;
         material.metalness = hasFoil ? pbr.foilMetalness : 0.0;
+        // Clearcoat only where clearcoatMap is bright; keep strength but map-gated.
         material.clearcoat = hasVarnish ? pbr.clearcoat : 0;
         material.clearcoatRoughness = hasVarnish ? pbr.clearcoatRoughness : 1;
         material.clearcoatMap = clearcoatTex;

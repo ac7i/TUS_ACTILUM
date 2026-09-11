@@ -1133,8 +1133,8 @@
                                                        accept="image/png,image/jpeg,image/webp"/>
                                                 <div class="tus-texture-file-name small text-muted mt-1"/>
                                                 <p class="small text-muted mt-1 mb-0">
-                                                    Upload a grayscale mask with the same dimensions and resolution as the selected image.
-                                                    The mask inherits the image transforms automatically.
+                                                    Upload a grayscale mask with the same pixel dimensions and resolution as the selected image (source file size, not the scaled canvas size).
+                                                    Black = outward relief; white = flat. The mask inherits the image transforms automatically.
                                                 </p>
                                             </div>
                                             <div class="control py-2">

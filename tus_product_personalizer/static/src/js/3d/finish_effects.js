@@ -56,6 +56,11 @@ export function ensureObjectFinishDefaults(obj) {
     if (!obj || obj.center_line || obj.extra_elem) {
         return;
     }
+    if (obj.tusTextureLayer) {
+        // Substrate/texture fill layers never carry print varnish/gloss.
+        obj.tusVarnishType = VARNISH_NONE;
+        return;
+    }
     if (obj.tusFinishEffect === undefined) {
         obj.tusFinishEffect = FINISH_NONE;
     }
@@ -192,13 +197,14 @@ export function getPBRSettings(globalSettings = {}) {
         foilEmissiveIntensity: globalSettings.hasFoil ? 0.12 : 0.5,
     };
     if (varnish === VARNISH_GLOSS) {
-        settings.baseRoughness = 0.45;
-        settings.clearcoat = 0.9;
-        settings.clearcoatRoughness = 0.06;
-    } else if (varnish === VARNISH_SATIN) {
-        settings.baseRoughness = 0.58;
+        // Subtle clearcoat (lip-gloss / spot UV style), not a blown-out white hotspot.
+        settings.baseRoughness = 0.72;
         settings.clearcoat = 0.55;
-        settings.clearcoatRoughness = 0.28;
+        settings.clearcoatRoughness = 0.18;
+    } else if (varnish === VARNISH_SATIN) {
+        settings.baseRoughness = 0.78;
+        settings.clearcoat = 0.35;
+        settings.clearcoatRoughness = 0.32;
         settings.useSheenColor = true;
     }
     return settings;
@@ -412,11 +418,13 @@ function _applyFoilCanvasPreview(obj) {
 }
 
 function _applyVarnishCanvasPreview(obj, varnishType) {
+    // Keep 2D editor hint subtle — strong white glow looked like a fake blotch.
+    // Real spot gloss is judged in 3D via the varnish mask.
     const shadow =
         varnishType === VARNISH_GLOSS
-            ? { color: "rgba(255,255,255,0.45)", blur: 6, offsetX: 0, offsetY: 0 }
+            ? { color: "rgba(255,255,255,0.18)", blur: 3, offsetX: 0, offsetY: 0 }
             : varnishType === VARNISH_SATIN
-              ? { color: "rgba(255,255,255,0.25)", blur: 4, offsetX: 0, offsetY: 0 }
+              ? { color: "rgba(255,255,255,0.12)", blur: 2, offsetX: 0, offsetY: 0 }
               : null;
     obj.set({ shadow, tusFinishPreviewActive: true });
 }

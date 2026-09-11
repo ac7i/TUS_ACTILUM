@@ -47,29 +47,99 @@ async function drawDataUrlInRect(ctx, dataUrl, left, top, width, height) {
 }
 
 /** Draw a customer-uploaded image at the object's bounding box on a bake map. */
-async function drawObjectTextureFile(ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, dataUrl) {
+/**
+ * Draw an uploaded grayscale height/varnish map using the Fabric object's full
+ * affine transform (position, scale, rotation, flip) — not the AABB alone.
+ *
+ * Fabric's calcTransformMatrix() maps center-based local space (0,0 = object
+ * center), so the mask must be drawn at (-width/2, -height/2). Using originX/Y
+ * offsets here double-counts placement and shifts the emboss (e.g. toward
+ * bottom-right).
+ *
+ * For emboss height maps, invert luminance so black = outward relief and
+ * white = flat (bake canvas still uses bright = raised for Three.js).
+ */
+async function drawObjectTextureFile(
+    ctx,
+    fabricCanvas,
+    obj,
+    destLeft,
+    destTop,
+    destW,
+    destH,
+    dataUrl,
+    { invertHeight = true, composite = "lighten" } = {}
+) {
     if (!dataUrl || !ctx || !fabricCanvas || !obj) {
         return;
     }
     const canvasW = fabricCanvas.getWidth();
     const canvasH = fabricCanvas.getHeight();
-    const rect = obj.getBoundingRect(true, true);
-    if (!rect || rect.width < 1 || rect.height < 1) {
+    if (canvasW < 1 || canvasH < 1) {
         return;
     }
-    const relCropLeft = rect.left / canvasW;
-    const relCropTop = rect.top / canvasH;
-    const relCropW = rect.width / canvasW;
-    const relCropH = rect.height / canvasH;
-    const x = destLeft + relCropLeft * destW;
-    const y = destTop + relCropTop * destH;
-    const w = Math.max(1, relCropW * destW);
-    const h = Math.max(1, relCropH * destH);
     try {
         const img = await loadImage(dataUrl);
+        const srcW = Math.max(1, img.naturalWidth || img.width || 1);
+        const srcH = Math.max(1, img.naturalHeight || img.height || 1);
+
+        let drawSource = img;
+        if (invertHeight) {
+            const inv = document.createElement("canvas");
+            inv.width = srcW;
+            inv.height = srcH;
+            const ictx = inv.getContext("2d", { willReadFrequently: true });
+            if (!ictx) {
+                return;
+            }
+            ictx.drawImage(img, 0, 0);
+            const id = ictx.getImageData(0, 0, srcW, srcH);
+            const data = id.data;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] < 1) {
+                    continue;
+                }
+                data[i] = 255 - data[i];
+                data[i + 1] = 255 - data[i + 1];
+                data[i + 2] = 255 - data[i + 2];
+            }
+            ictx.putImageData(id, 0, 0);
+            drawSource = inv;
+        }
+
+        obj.setCoords?.();
+        const matrix = typeof obj.calcTransformMatrix === "function"
+            ? obj.calcTransformMatrix()
+            : null;
+        const objW = Math.max(1, obj.width || srcW);
+        const objH = Math.max(1, obj.height || srcH);
+        // Center-local draw (matches Fabric _render / calcTransformMatrix).
+        const ox = -objW / 2;
+        const oy = -objH / 2;
+
+        const bakeScaleX = destW / canvasW;
+        const bakeScaleY = destH / canvasH;
+
         ctx.save();
-        ctx.globalCompositeOperation = "lighten";
-        ctx.drawImage(img, x, y, w, h);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.globalCompositeOperation = composite;
+        ctx.translate(destLeft, destTop);
+        ctx.scale(bakeScaleX, bakeScaleY);
+        if (matrix) {
+            ctx.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+        } else {
+            ctx.translate(obj.left || 0, obj.top || 0);
+            ctx.rotate(((obj.angle || 0) * Math.PI) / 180);
+            ctx.scale(obj.scaleX || 1, obj.scaleY || 1);
+            if (obj.flipX) {
+                ctx.scale(-1, 1);
+            }
+            if (obj.flipY) {
+                ctx.scale(1, -1);
+            }
+        }
+        ctx.drawImage(drawSource, ox, oy, objW, objH);
         ctx.restore();
     } catch (err) {
         console.warn("Could not draw texture file on bake map:", err);
@@ -79,6 +149,7 @@ async function drawObjectTextureFile(ctx, fabricCanvas, obj, destLeft, destTop, 
 /**
  * Spot varnish: layer silhouette ∩ uploaded mask luminance.
  * White/light = varnish on; dark = no varnish. Never draws printable ink.
+ * Uses the object's full transform. On mask failure, skips coat (no full-silhouette fallback).
  */
 async function drawObjectVarnishSpotMask(
     ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, dataUrl
@@ -93,6 +164,7 @@ async function drawObjectVarnishSpotMask(
     if (!offCtx) {
         return;
     }
+    // Start from the oriented object silhouette.
     await drawObjectMask(
         offCtx,
         fabricCanvas,
@@ -107,30 +179,23 @@ async function drawObjectVarnishSpotMask(
 
     const canvasW = fabricCanvas.getWidth();
     const canvasH = fabricCanvas.getHeight();
-    const rect = obj.getBoundingRect(true, true);
-    if (!rect || rect.width < 1 || rect.height < 1) {
+    if (canvasW < 1 || canvasH < 1) {
         return;
     }
-    const relCropLeft = rect.left / canvasW;
-    const relCropTop = rect.top / canvasH;
-    const relCropW = rect.width / canvasW;
-    const relCropH = rect.height / canvasH;
-    const x = destLeft + relCropLeft * destW;
-    const y = destTop + relCropTop * destH;
-    const w = Math.max(1, Math.round(relCropW * destW));
-    const h = Math.max(1, Math.round(relCropH * destH));
 
     try {
         const img = await loadImage(dataUrl);
+        const srcW = Math.max(1, img.naturalWidth || img.width || 1);
+        const srcH = Math.max(1, img.naturalHeight || img.height || 1);
         const maskCan = document.createElement("canvas");
-        maskCan.width = w;
-        maskCan.height = h;
-        const mctx = maskCan.getContext("2d");
+        maskCan.width = srcW;
+        maskCan.height = srcH;
+        const mctx = maskCan.getContext("2d", { willReadFrequently: true });
         if (!mctx) {
             return;
         }
-        mctx.drawImage(img, 0, 0, w, h);
-        const id = mctx.getImageData(0, 0, w, h);
+        mctx.drawImage(img, 0, 0);
+        const id = mctx.getImageData(0, 0, srcW, srcH);
         const data = id.data;
         for (let i = 0; i < data.length; i += 4) {
             const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
@@ -143,9 +208,37 @@ async function drawObjectVarnishSpotMask(
         }
         mctx.putImageData(id, 0, 0);
 
+        obj.setCoords?.();
+        const matrix = typeof obj.calcTransformMatrix === "function"
+            ? obj.calcTransformMatrix()
+            : null;
+        const objW = Math.max(1, obj.width || srcW);
+        const objH = Math.max(1, obj.height || srcH);
+        // Center-local draw (matches Fabric calcTransformMatrix).
+        const ox = -objW / 2;
+        const oy = -objH / 2;
+
+        const bakeScaleX = destW / canvasW;
+        const bakeScaleY = destH / canvasH;
+        const orientedMask = document.createElement("canvas");
+        orientedMask.width = off.width;
+        orientedMask.height = off.height;
+        const omCtx = orientedMask.getContext("2d");
+        if (!omCtx) {
+            return;
+        }
+        omCtx.save();
+        omCtx.translate(destLeft, destTop);
+        omCtx.scale(bakeScaleX, bakeScaleY);
+        if (matrix) {
+            omCtx.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+        }
+        omCtx.drawImage(maskCan, ox, oy, objW, objH);
+        omCtx.restore();
+
         offCtx.save();
         offCtx.globalCompositeOperation = "destination-in";
-        offCtx.drawImage(maskCan, x, y, w, h);
+        offCtx.drawImage(orientedMask, 0, 0);
         offCtx.restore();
 
         ctx.save();
@@ -153,11 +246,7 @@ async function drawObjectVarnishSpotMask(
         ctx.drawImage(off, 0, 0);
         ctx.restore();
     } catch (err) {
-        console.warn("Could not apply varnish spot mask:", err);
-        // Fallback: varnish the whole layer silhouette.
-        await drawObjectMask(
-            ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, "varnish", REFERENCE_RELIEF_MM
-        );
+        console.warn("Could not apply varnish spot mask; skipping coat for object:", err);
     }
 }
 
@@ -503,9 +592,10 @@ function buildRoughnessMap(varnishCanvas, varnishType, width, height, alphaCanva
 
     let glossValue = 180;
     if (varnishType === VARNISH_GLOSS) {
-        glossValue = 55;
+        // Milder than before so spot gloss reads as coating, not a white blotch.
+        glossValue = 95;
     } else if (varnishType === VARNISH_SATIN) {
-        glossValue = 110;
+        glossValue = 130;
     }
 
     for (let i = 0; i < data.data.length; i += 4) {
@@ -1023,7 +1113,9 @@ export async function bakeMapsForSide(editor, side, options = {}) {
         if (!dest) {
             continue;
         }
-        const objects = fab.getObjects().filter((obj) => !obj.center_line && !obj.extra_elem);
+        const objects = fab.getObjects().filter(
+            (obj) => !obj.center_line && !obj.extra_elem && !obj.tusTextureLayer
+        );
         for (const obj of objects) {
             ensureObjectFinishDefaults(obj);
             ensureObjectFinishUploadDefaults(obj);
@@ -1098,10 +1190,13 @@ export async function bakeMapsForSide(editor, side, options = {}) {
             primaryVarnishType = preferVarnishType(primaryVarnishType, varnishType);
             if (varnishType !== VARNISH_NONE) {
                 const cover = obj.tusVarnishCoverMode || "all";
-                if (cover === "by_file" && obj.tusVarnishAreaFile) {
-                    await drawObjectVarnishSpotMask(
-                        varCtx, fab, obj, dest.left, dest.top, dest.width, dest.height, obj.tusVarnishAreaFile
-                    );
+                if (cover === "by_file") {
+                    if (obj.tusVarnishAreaFile) {
+                        await drawObjectVarnishSpotMask(
+                            varCtx, fab, obj, dest.left, dest.top, dest.width, dest.height, obj.tusVarnishAreaFile
+                        );
+                    }
+                    // by_file without a mask: skip coat (do not flood silhouette).
                 } else {
                     // "all" and "zones" (production note): varnish the layer silhouette.
                     await drawObjectMask(

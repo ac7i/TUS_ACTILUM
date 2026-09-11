@@ -95,23 +95,34 @@ export const fabricFinishUploadMixin = {
         if (!obj) {
             return null;
         }
-        const width = Number(obj.sourcePixelWidth || obj._tusSourceWidth || 0);
-        const height = Number(obj.sourcePixelHeight || obj._tusSourceHeight || 0);
+        // Always prefer persisted source metadata (independent of scale/rotate).
+        let width = Math.round(Number(obj.sourcePixelWidth || obj._tusSourceWidth || 0));
+        let height = Math.round(Number(obj.sourcePixelHeight || obj._tusSourceHeight || 0));
         if (width > 0 && height > 0) {
             return { width, height, dpi: obj.sourceFileDpi || null };
         }
         if (obj.type === "image") {
             const el = obj._element || obj.getElement?.();
-            const w = el?.naturalWidth || el?.width || obj.width || 0;
-            const h = el?.naturalHeight || el?.height || obj.height || 0;
-            if (w > 0 && h > 0) {
-                return { width: w, height: h, dpi: obj.sourceFileDpi || null };
+            width = Math.round(Number(el?.naturalWidth || el?.width || 0));
+            height = Math.round(Number(el?.naturalHeight || el?.height || 0));
+            // Do not fall back to obj.width/height — those are Fabric layout units
+            // and change with transforms / SVG viewBox mapping.
+            if (width > 0 && height > 0) {
+                obj.sourcePixelWidth = width;
+                obj.sourcePixelHeight = height;
+                return { width, height, dpi: obj.sourceFileDpi || null };
             }
         }
         if (obj.type === "group" && typeof obj.getObjects === "function") {
             for (const child of obj.getObjects()) {
                 const nested = this._getObjectSourcePixelSize(child);
                 if (nested) {
+                    // Persist on the group so later transforms still validate.
+                    obj.sourcePixelWidth = nested.width;
+                    obj.sourcePixelHeight = nested.height;
+                    if (nested.dpi) {
+                        obj.sourceFileDpi = nested.dpi;
+                    }
                     return nested;
                 }
             }
@@ -152,12 +163,23 @@ export const fabricFinishUploadMixin = {
     async _validateFinishMaskFile(file, targetObj, { requireGrayscale = true } = {}) {
         const dataUrl = await this._readFileAsDataURL(file);
         const img = await this._loadImageElementFromDataUrl(dataUrl);
-        const width = img.naturalWidth || img.width;
-        const height = img.naturalHeight || img.height;
+        const width = Math.round(img.naturalWidth || img.width);
+        const height = Math.round(img.naturalHeight || img.height);
         const source = this._getObjectSourcePixelSize(targetObj);
-        if (source && (width !== source.width || height !== source.height)) {
+        if (!source) {
             throw new Error(
-                _t("The uploaded mask must match the original image dimensions (%s × %s px).", source.width, source.height)
+                _t("Could not read the original image dimensions for mask validation.")
+            );
+        }
+        if (width !== source.width || height !== source.height) {
+            throw new Error(
+                _t(
+                    "The uploaded mask (%s × %s px) must match the original image dimensions (%s × %s px).",
+                    width,
+                    height,
+                    source.width,
+                    source.height
+                )
             );
         }
         if (requireGrayscale) {

@@ -184,7 +184,15 @@ _onAddClipartIcon: async function (ev) {
                 scaleY: scale,
                 id: Date.now().toString(),
                 type_custom: 'clipart',
+                lockUniScaling: true,
+                lockScalingFlip: true,
+                centeredScaling: true,
+                tusVarnishType: 'none',
+                tusVarnishCoverMode: 'all',
+                tusFinishEffect: 'none',
             });
+            delete obj.tusVarnishAreaFile;
+            delete obj.tusVarnishAreaFileName;
             obj.setCoords();
 
             self.canvas.add(obj);

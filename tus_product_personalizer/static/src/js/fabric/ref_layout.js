@@ -861,12 +861,16 @@ export function registerFabricRefLayout() {
             this._tusZoom = Math.min(200, Math.max(50, pct));
             this.$(".tus-zoom-value").text(`${this._tusZoom}%`);
             const scale = this._tusZoom / 100;
-            // Prefer Fabric viewport zoom over CSS transform so selection
-            // handles stay aligned with the rendered artwork.
-            this.$(".main_wrapper .tab-content").css({ transform: "" });
-            this.$(".main_wrapper .tab-content > .tab-pane .product-stage").css({
+            // Zoom the full product stage (mockup + design canvases + overlays)
+            // as one visual unit. Keep Fabric zoom at 1 so selection handles
+            // stay aligned with the CSS-scaled stage.
+            this.$(".main_wrapper .tab-content").css({
                 transform: "",
-                "transform-origin": "",
+                overflow: scale === 1 ? "" : "visible",
+            });
+            this.$(".main_wrapper .tab-content > .tab-pane .product-stage").css({
+                transform: scale === 1 ? "" : `scale(${scale})`,
+                "transform-origin": "center center",
             });
             for (const side of Object.keys(this.canvasesBySide || {})) {
                 for (const entry of this.canvasesBySide[side] || []) {
@@ -874,15 +878,11 @@ export function registerFabricRefLayout() {
                     if (!canvas) {
                         continue;
                     }
-                    const center = canvas.getCenter();
-                    const fabricLib = window.fabric;
-                    if (fabricLib?.Point && typeof canvas.zoomToPoint === "function") {
-                        canvas.zoomToPoint(
-                            new fabricLib.Point(center.left, center.top),
-                            scale
-                        );
-                    } else if (typeof canvas.setZoom === "function") {
-                        canvas.setZoom(scale);
+                    if (typeof canvas.setZoom === "function") {
+                        canvas.setZoom(1);
+                    }
+                    if (typeof canvas.setViewportTransform === "function") {
+                        canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
                     }
                     canvas.calcOffset?.();
                     canvas.getObjects().forEach((obj) => obj.setCoords?.());

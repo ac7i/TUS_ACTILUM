@@ -2237,6 +2237,8 @@ html:has(.fabric_container.tus-personalizer) {
         display: flex;
         align-items: center;
         justify-content: center;
+        transform-origin: center center;
+        will-change: transform;
         max-height: 100%;
         width: 100%;
         margin: auto;

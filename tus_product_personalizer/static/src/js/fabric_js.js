@@ -13,7 +13,6 @@ import {
     getAreaDisplayLayout,
     normalizeDesignArea,
     normalizeDesignAreas,
-    pointInPolygon,
     stagePointsToCanvas,
 } from "./design_area_shapes";
 import {
@@ -1418,25 +1417,26 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                             // Scale all objects' positions and sizes to maintain relative positions
                             if (shouldScale) {
                                 const objects = canvas.getObjects();
+                                // Uniform artwork scale preserves aspect when the
+                                // design-area aspect ratio changes; positions still
+                                // track each axis so relative layout is kept.
+                                const uni = Math.min(scaleX, scaleY);
                                 objects.forEach(function (obj) {
                                     if (obj.tusTextureLayer) {
                                         return;
                                     }
-                                    // Scale position
                                     if (obj.left !== undefined) {
                                         obj.left = obj.left * scaleX;
                                     }
                                     if (obj.top !== undefined) {
                                         obj.top = obj.top * scaleY;
                                     }
-                                    // Scale dimensions (for objects that have width/height)
-                                    if (obj.width !== undefined && obj.scaleX !== undefined) {
-                                        obj.scaleX = obj.scaleX * scaleX;
+                                    if (obj.scaleX !== undefined) {
+                                        obj.scaleX = obj.scaleX * uni;
                                     }
-                                    if (obj.height !== undefined && obj.scaleY !== undefined) {
-                                        obj.scaleY = obj.scaleY * scaleY;
+                                    if (obj.scaleY !== undefined) {
+                                        obj.scaleY = obj.scaleY * uni;
                                     }
-                                    // Update coordinates for proper rendering
                                     obj.setCoords();
                                 });
                             }
@@ -1954,9 +1954,21 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     const hueRotationFilter = new fabric.Image.filters.HueRotation({ rotation: 0 });
                     obj.filters.push(brightnessFilter, contrastFilter, saturationFilter, hueRotationFilter);
                     obj.applyFilters();
+                    const el = obj._element || obj.getElement?.();
+                    const sw = Math.round(Number(el?.naturalWidth || 0));
+                    const sh = Math.round(Number(el?.naturalHeight || 0));
+                    if (sw > 0 && sh > 0) {
+                        if (!obj.sourcePixelWidth) {
+                            obj.sourcePixelWidth = sw;
+                        }
+                        if (!obj.sourcePixelHeight) {
+                            obj.sourcePixelHeight = sh;
+                        }
+                    }
                 }
                 if (obj) {
                     ensureObjectFinishDefaults(obj);
+                    self._ensureAspectSafeScaling?.(obj);
                     self._clampObjectToDesignArea(c, obj);
                 }
                 if (!self.historyProcessing) {
@@ -2232,104 +2244,32 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
     },
 
     /**
-     * Keep user objects fully inside the printable design-area canvas.
-     * Uses axis-aligned bounding box (works with move, scale, and rotate).
-     * Scales each axis independently so adjusting width does not shrink height
-     * (and vice versa) when the other dimension hits the canvas edge.
+     * Design-area clipPath remains the printable window. Objects may extend
+     * outside that window (professional editor behaviour) — do not jail or
+     * non-uniformly shrink them on move/scale.
      */
     _clampObjectToDesignArea: function (canvas, obj, options) {
-        if (!canvas || !this._shouldClampToDesignArea(obj)) {
-            return false;
+        void canvas;
+        void obj;
+        void options;
+        return false;
+    },
+
+    _ensureAspectSafeScaling: function (obj) {
+        if (!obj || obj.center_line || obj.extra_elem || obj.tusTextureLayer) {
+            return;
         }
-
-        options = options || {};
-
-        const cw = canvas.getWidth();
-        const ch = canvas.getHeight();
-        if (cw <= 1 || ch <= 1) {
-            return false;
+        const isImageLike =
+            obj.type === "image" ||
+            obj.type_custom === "clipart" ||
+            obj.isEmbeddedPhotoSvg ||
+            (obj.type === "group" && (obj.type_custom === "clipart" || obj.isEmbeddedPhotoSvg));
+        if (!isImageLike && obj.type !== "group") {
+            return;
         }
-
-        const poly = canvas._tusClipPoints;
-        if (poly && poly.length >= 3) {
-            obj.setCoords();
-            const br = obj.getBoundingRect(true, true);
-            const cx = br.left + br.width / 2;
-            const cy = br.top + br.height / 2;
-            if (!pointInPolygon(cx, cy, poly)) {
-                const centroid = poly.reduce(
-                    (acc, p) => ({ x: acc.x + p.x / poly.length, y: acc.y + p.y / poly.length }),
-                    { x: 0, y: 0 }
-                );
-                obj.set({
-                    left: obj.left + (centroid.x - cx),
-                    top: obj.top + (centroid.y - cy),
-                });
-                obj.setCoords();
-                return true;
-            }
+        if (obj.lockUniScaling === undefined || obj.type === "image" || obj.type_custom === "clipart") {
+            obj.set({ lockUniScaling: true, lockScalingFlip: true });
         }
-
-        const corner = options.transform?.corner || "";
-        const horizOnly = corner === "ml" || corner === "mr";
-        const vertOnly = corner === "mt" || corner === "mb";
-
-        obj.setCoords();
-        let br = obj.getBoundingRect(true, true);
-        let changed = false;
-
-        const maxW = canvas._tusPrintableInset ? canvas._tusPrintableInset.width : cw;
-        const maxH = canvas._tusPrintableInset ? canvas._tusPrintableInset.height : ch;
-
-        if (!vertOnly && br.width > maxW) {
-            const factorX = maxW / br.width;
-            if (factorX < 1) {
-                obj.scaleX = (obj.scaleX || 1) * factorX;
-                obj.setCoords();
-                br = obj.getBoundingRect(true, true);
-                changed = true;
-            }
-        }
-        if (!horizOnly && br.height > maxH) {
-            const factorY = maxH / br.height;
-            if (factorY < 1) {
-                obj.scaleY = (obj.scaleY || 1) * factorY;
-                obj.setCoords();
-                br = obj.getBoundingRect(true, true);
-                changed = true;
-            }
-        }
-
-        let left = obj.left;
-        let top = obj.top;
-
-        const boundsLeft = canvas._tusPrintableInset?.left ?? 0;
-        const boundsTop = canvas._tusPrintableInset?.top ?? 0;
-        const boundsRight = boundsLeft + (canvas._tusPrintableInset?.width ?? cw);
-        const boundsBottom = boundsTop + (canvas._tusPrintableInset?.height ?? ch);
-
-        if (br.left < boundsLeft) {
-            left -= br.left - boundsLeft;
-            changed = true;
-        }
-        if (br.top < boundsTop) {
-            top -= br.top - boundsTop;
-            changed = true;
-        }
-        if (br.left + br.width > boundsRight) {
-            left -= br.left + br.width - boundsRight;
-            changed = true;
-        }
-        if (br.top + br.height > boundsBottom) {
-            top -= br.top + br.height - boundsBottom;
-            changed = true;
-        }
-
-        if (changed) {
-            obj.set({ left, top });
-            obj.setCoords();
-        }
-        return changed;
     },
 
     _clampActiveObjectToDesignArea: function (canvas) {
@@ -2385,6 +2325,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             top: (ch - baseH * sy) / 2,
             originX: "left",
             originY: "top",
+            lockUniScaling: true,
+            lockScalingFlip: true,
+            centeredScaling: true,
         });
         obj.setCoords();
         return obj;
@@ -4248,7 +4191,20 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     top: self.currentElement.top + 20,
                     centeredRotation: true,
                     centeredScaling: true,
+                    lockUniScaling: true,
+                    lockScalingFlip: true,
                 });
+                if (self.currentElement.sourcePixelWidth) {
+                    clonedObj.sourcePixelWidth = self.currentElement.sourcePixelWidth;
+                    clonedObj.sourcePixelHeight = self.currentElement.sourcePixelHeight;
+                }
+                if (self.currentElement.sourceFileDpi) {
+                    clonedObj.sourceFileDpi = self.currentElement.sourceFileDpi;
+                }
+                ensureObjectFinishDefaults(clonedObj);
+                if (clonedObj.type_custom === "clipart" && !clonedObj.tusVarnishType) {
+                    clonedObj.tusVarnishType = "none";
+                }
                 self.canvas.add(clonedObj);
                 self.canvas.setActiveObject(clonedObj);
                 self.canvas.renderAll();
