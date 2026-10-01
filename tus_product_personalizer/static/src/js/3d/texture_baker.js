@@ -197,10 +197,12 @@ async function drawObjectVarnishSpotMask(
         mctx.drawImage(img, 0, 0);
         const id = mctx.getImageData(0, 0, srcW, srcH);
         const data = id.data;
+        // Binary coat: white/light mask = full varnish, dark = none.
+        // Soft midtones leak gloss outside the intended spot (e.g. lips).
         for (let i = 0; i < data.length; i += 4) {
             const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
             const srcA = data[i + 3] / 255;
-            const a = Math.round(Math.min(1, lum * srcA) * 255);
+            const a = (lum * srcA) >= 0.5 ? 255 : 0;
             data[i] = 255;
             data[i + 1] = 255;
             data[i + 2] = 255;
@@ -571,8 +573,9 @@ function buildRoughnessMap(varnishCanvas, varnishType, width, height, alphaCanva
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
-    // Matte substrate everywhere; only masked varnish regions become shiny.
-    ctx.fillStyle = "#d9d9d9";
+    // Matte substrate ≈ no-varnish material.roughness 0.92 (235/255).
+    // Previous #d9d9d9 (~0.85) made the whole sheet shinier when varnish was on.
+    ctx.fillStyle = "#ebebeb";
     ctx.fillRect(0, 0, width, height);
 
     if (!varnishCanvas || varnishType === VARNISH_NONE) {
@@ -600,11 +603,13 @@ function buildRoughnessMap(varnishCanvas, varnishType, width, height, alphaCanva
 
     for (let i = 0; i < data.data.length; i += 4) {
         const mask = data.data[i] / 255;
-        if (mask <= 0.01) {
-            continue;
+        const base = 235;
+        // Always write matte base outside the coat — raw varnish black must not
+        // remain (roughness 0 would specular-shine the whole sheet).
+        let v = base;
+        if (mask > 0.5) {
+            v = Math.round(base + (glossValue - base) * mask);
         }
-        const base = 217;
-        const v = Math.round(base + (glossValue - base) * mask);
         data.data[i] = v;
         data.data[i + 1] = v;
         data.data[i + 2] = v;
@@ -632,9 +637,11 @@ function buildClearcoatCanvas(varnishCanvas, width, height) {
     const dst = ctx.getImageData(0, 0, width, height);
     for (let i = 0; i < src.data.length; i += 4) {
         const v = Math.max(src.data[i], src.data[i + 1], src.data[i + 2]);
-        dst.data[i] = v;
-        dst.data[i + 1] = v;
-        dst.data[i + 2] = v;
+        // Hard threshold: only bright mask pixels get clearcoat (no soft bleed).
+        const coat = v >= 128 ? 255 : 0;
+        dst.data[i] = coat;
+        dst.data[i + 1] = coat;
+        dst.data[i + 2] = coat;
         dst.data[i + 3] = 255;
     }
     ctx.putImageData(dst, 0, 0);
@@ -882,7 +889,7 @@ export async function buildInkFoilPreviewForObject(fabricCanvas, obj, metal = DE
     };
 }
 
-async function drawObjectMask(ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, mode, globalReliefMm) {
+async function drawObjectMask(ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, mode, globalReliefMm, inkMultiplier = 3) {
     ensureObjectFinishDefaults(obj);
     if (typeof fabric === "undefined") {
         return;
@@ -932,7 +939,7 @@ async function drawObjectMask(ctx, fabricCanvas, obj, destLeft, destTop, destW, 
             top: cropTop,
             width: cropW,
             height: cropH,
-            multiplier: 3,
+            multiplier: Math.max(1, Math.min(3, inkMultiplier)),
         });
     } finally {
         visibility.forEach((state, o) => {
@@ -1057,7 +1064,8 @@ export async function bakeMapsForSide(editor, side, options = {}) {
         imgRect = img.getBoundingClientRect();
     }
 
-    const exportMaxSize = options.maxSize || Math.max(naturalWidth, naturalHeight, 2048);
+    const exportMaxSize = options.maxSize || 2048;
+    const inkMultiplier = options.inkMultiplier ?? 3;
     const fabricCanvases = entries.map((e) => e.canvas).filter(Boolean);
 
     for (const fab of fabricCanvases) {
@@ -1147,7 +1155,8 @@ export async function bakeMapsForSide(editor, side, options = {}) {
                         dest.width,
                         dest.height,
                         "emboss",
-                        textureRelief
+                        textureRelief,
+                        inkMultiplier
                     );
                 }
             }
@@ -1166,7 +1175,8 @@ export async function bakeMapsForSide(editor, side, options = {}) {
                     dest.width,
                     dest.height,
                     effect === FINISH_DEBOSS ? "deboss" : "emboss",
-                    embossRelief
+                    embossRelief,
+                    inkMultiplier
                 );
             }
             if (isFoilFinish(effect)) {
@@ -1208,7 +1218,8 @@ export async function bakeMapsForSide(editor, side, options = {}) {
                         dest.width,
                         dest.height,
                         "varnish",
-                        REFERENCE_RELIEF_MM
+                        REFERENCE_RELIEF_MM,
+                        inkMultiplier
                     );
                 }
             }
@@ -1252,9 +1263,15 @@ export async function bakeMapsForSide(editor, side, options = {}) {
     }
 
     const hasEmboss = canvasHasBrightContent(blurredDisp);
+    // Fail-closed: only treat varnish as active when the bake map has bright pixels
+    // from objects that explicitly opted into varnish (never from backgroundImage alone).
     const hasVarnish = canvasHasBrightContent(varnishCanvas);
     if (!hasVarnish) {
         primaryVarnishType = VARNISH_NONE;
+        // Clear any residual white so PBR never sees a stale varnish map.
+        varCtx.globalCompositeOperation = "source-over";
+        varCtx.fillStyle = "#000000";
+        varCtx.fillRect(0, 0, bakeWidth, bakeHeight);
     }
     if (hasEmboss && !(maxReliefMm > 0)) {
         maxReliefMm = REFERENCE_RELIEF_MM;
@@ -1309,7 +1326,8 @@ export async function bakeMapsForSide(editor, side, options = {}) {
     }
 
     const maps = {
-        colorDataUrl: bakedColorCanvas.toDataURL("image/png"),
+        // Prefer colorCanvas in the viewer — skip expensive PNG encode for live preview.
+        colorDataUrl: null,
         colorCanvas: bakedColorCanvas,
         alphaCanvas,
         displacementCanvas: blurredDisp,
@@ -1354,11 +1372,12 @@ export async function dataUrlToTexture(THREE, dataUrl, renderer) {
 export function canvasToTexture(THREE, canvas, options = {}) {
     const tex = new THREE.CanvasTexture(canvas);
     tex.flipY = options.flipY !== false;
-    tex.generateMipmaps = options.generateMipmaps !== false;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    const useMipmaps = options.generateMipmaps !== false;
+    tex.generateMipmaps = useMipmaps;
+    tex.minFilter = useMipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     const maxAniso = options.renderer?.capabilities?.getMaxAnisotropy?.() || 16;
-    tex.anisotropy = options.anisotropy || maxAniso;
+    tex.anisotropy = useMipmaps ? (options.anisotropy || maxAniso) : 1;
     if (options.colorSpace === "srgb" && THREE.sRGBEncoding !== undefined) {
         tex.encoding = THREE.sRGBEncoding;
     } else if (options.colorSpace === "linear" && THREE.LinearEncoding !== undefined) {

@@ -68,6 +68,7 @@ export function ensureObjectFinishDefaults(obj) {
         obj.tusReliefMm = DEFAULT_RELIEF_MM;
     }
     if (obj.tusVarnishType === undefined) {
+        // Clipart and all other objects default to no varnish.
         obj.tusVarnishType = VARNISH_NONE;
     }
 }
@@ -418,6 +419,11 @@ function _applyFoilCanvasPreview(obj) {
 }
 
 function _applyVarnishCanvasPreview(obj, varnishType) {
+    // Never apply gloss glow when varnish is off (base texture must stay matte in 2D).
+    if (!varnishType || varnishType === VARNISH_NONE) {
+        obj.set({ shadow: null, tusFinishPreviewActive: false });
+        return;
+    }
     // Keep 2D editor hint subtle — strong white glow looked like a fake blotch.
     // Real spot gloss is judged in 3D via the varnish mask.
     const shadow =

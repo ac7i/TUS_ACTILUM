@@ -2127,6 +2127,48 @@ class ProductDesigner(http.Controller):
             'public': False,
         })
 
+    def _serialize_canvas_image_payload(self, record, *, is_vector=None):
+        """Build the standard library/upload payload from an existing canvas.image.
+
+        Photo source dimensions always prefer DB ``source_width`` / ``source_height``
+        (original file pixels) over embedded SVG preview size.
+        """
+        from odoo.addons.tus_product_personalizer.utils.svg_embed import (
+            parse_embedded_raster_dimensions,
+        )
+
+        record.ensure_one()
+        try:
+            svg_text = base64.b64decode(record.file).decode("utf-8")
+        except Exception as exc:
+            raise ValueError(f"Could not read canvas image SVG: {exc}") from exc
+
+        if is_vector is None:
+            # Photo/preview layers embed a raster <image>; native vectors do not.
+            is_vector = "<image" not in (svg_text or "").lower()
+
+        payload = {
+            "id": record.id,
+            "name": record.name,
+            "svg": svg_text,
+            "is_vector": bool(is_vector),
+            "image_datas": image_data_uri(record.file),
+            "original_attachment_id": record.original_attachment_id.id or False,
+            "preview_scale": float(record.preview_scale or 1.0),
+            "source_dpi": float(record.source_dpi or 0.0) or False,
+        }
+
+        preview_dims = parse_embedded_raster_dimensions(svg_text) if not is_vector else None
+        # Prefer original file pixels stored on the record (e.g. 3751), never preview (e.g. 2048).
+        if record.source_width and record.source_height:
+            payload["source_width"] = int(record.source_width)
+            payload["source_height"] = int(record.source_height)
+        elif preview_dims:
+            payload["source_width"] = preview_dims["width"]
+            payload["source_height"] = preview_dims["height"]
+
+        return payload
+
     def _create_canvas_image_from_svg(
         self,
         svg_text,
@@ -2140,10 +2182,6 @@ class ProductDesigner(http.Controller):
         preview_scale=1.0,
     ):
         """Persist SVG text on canvas.image and return a standard payload."""
-        from odoo.addons.tus_product_personalizer.utils.svg_embed import (
-            parse_embedded_raster_dimensions,
-        )
-
         svg_filename = filename if filename.endswith(".svg") else f"{filename.rsplit('.', 1)[0]}.svg"
         file_b64 = base64.b64encode(svg_text.encode("utf-8"))
         vals = {
@@ -2168,28 +2206,7 @@ class ProductDesigner(http.Controller):
                 "res_id": record.id,
             })
 
-        payload = {
-            "id": record.id,
-            "name": record.name,
-            "svg": svg_text,
-            "is_vector": bool(is_vector),
-            "image_datas": image_data_uri(record.file),
-            "original_attachment_id": record.original_attachment_id.id or False,
-            "preview_scale": float(record.preview_scale or 1.0),
-            "source_dpi": float(record.source_dpi or 0.0) or False,
-        }
-        if not is_vector:
-            dims = parse_embedded_raster_dimensions(svg_text)
-            if dims:
-                payload["source_width"] = record.source_width or dims["width"]
-                payload["source_height"] = record.source_height or dims["height"]
-            elif record.source_width and record.source_height:
-                payload["source_width"] = record.source_width
-                payload["source_height"] = record.source_height
-        elif record.source_width and record.source_height:
-            payload["source_width"] = record.source_width
-            payload["source_height"] = record.source_height
-        return payload
+        return self._serialize_canvas_image_payload(record, is_vector=bool(is_vector))
 
     def _process_canvas_artwork_upload(
         self,
@@ -2637,6 +2654,21 @@ class ProductDesigner(http.Controller):
                     'Try a smaller image or increase server RAM.'
                 )
             return {'error': msg}
+
+    @http.route('/canvas/get_image', type='json', auth='public', website=True, csrf=False)
+    def get_canvas_image(self, image_id):
+        """Return library image payload with original source dimensions (not preview size)."""
+        write_err = self._require_share_write()
+        if write_err:
+            return write_err
+        try:
+            record = request.env['canvas.image'].sudo().browse(int(image_id))
+            if not record.exists():
+                return {'error': 'Image not found'}
+            return self._serialize_canvas_image_payload(record)
+        except Exception as exc:
+            _logger.exception("Canvas get_image failed for id=%s", image_id)
+            return {'error': str(exc)}
 
     @http.route('/canvas/update_image', type='json', auth='public', website=True, csrf=False)
     def update_canvas_image(self, image_id, filedata, filename=None):

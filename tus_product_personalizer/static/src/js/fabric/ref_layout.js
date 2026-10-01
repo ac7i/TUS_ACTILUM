@@ -766,6 +766,10 @@ export function registerFabricRefLayout() {
                 textureFileData: sideFinish.textureFileData || null,
                 varnishAreaFileData: sideFinish.varnishAreaFileData || null,
                 varnishCoverMode: sideFinish.varnishCoverMode || "all",
+                // High-quality live preview (screen-sharp); still faster than full native
+                // product resolution + PNG encode. Print export uses its own maxSize.
+                maxSize: 2048,
+                inkMultiplier: 3,
             });
             if (!maps) {
                 if (container) {

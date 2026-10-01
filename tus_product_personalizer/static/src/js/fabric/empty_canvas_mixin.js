@@ -5,6 +5,8 @@ import { normalizeDesignArea } from "../design_area_shapes";
 import {
     PRINT_EXPORT_MAX_EDGE,
     PRINT_EXPORT_MAX_MEGAPIXELS,
+    PRINT_CART_MAX_EDGE,
+    PRINT_EXPORT_FALLBACK_SCALES,
 } from "./constants";
 
 const DEFAULT_EMPTY_CANVAS_FINISH = "transparent";
@@ -821,7 +823,48 @@ export const fabricEmptyCanvasMixin = {
         return [Math.max(1, parseInt(match[1], 10)), Math.max(1, parseInt(match[2], 10))];
     },
 
-    _physicalSizeToPrintPixels(width, height, unit, dpiX = 300, dpiY = null) {
+    /**
+     * Browser-safe max canvas edge for print sheets.
+     * Low-memory devices get a lower edge; aspect ratio and MediaBox stay correct.
+     */
+    _getBrowserPrintMaxEdge() {
+        const hardCap = Number(PRINT_EXPORT_MAX_EDGE) || 16384;
+        try {
+            const mem = navigator.deviceMemory || 8;
+            if (mem <= 4) {
+                return Math.min(8192, hardCap);
+            }
+            if (mem <= 8) {
+                return Math.min(12288, hardCap);
+            }
+        } catch (_err) {
+            /* ignore */
+        }
+        return hardCap;
+    },
+
+    _physicalSizeToInches(width, height, unit) {
+        const w = Number(width) || 0;
+        const h = Number(height) || 0;
+        const unitKey = String(unit || "in").toLowerCase();
+        if (unitKey === "mm") {
+            return { inchesW: w / 25.4, inchesH: h / 25.4 };
+        }
+        if (unitKey === "cm") {
+            return { inchesW: w / 2.54, inchesH: h / 2.54 };
+        }
+        if (unitKey === "px") {
+            return { inchesW: w / 72.0, inchesH: h / 72.0 };
+        }
+        return { inchesW: w, inchesH: h };
+    },
+
+    /**
+     * Convert physical print size × PPI to pixel size (mirrors Python
+     * resolve_print_raster_size). Always scales proportionally — never a
+     * tiny fixed edge — so large-format sheets keep correct aspect / MediaBox.
+     */
+    _physicalSizeToPrintPixels(width, height, unit, dpiX = 300, dpiY = null, opts = {}) {
         const w = Number(width) || 0;
         const h = Number(height) || 0;
         if (w <= 0 || h <= 0) {
@@ -845,10 +888,18 @@ export const fabricEmptyCanvasMixin = {
             pxW = Math.round(w * dx);
             pxH = Math.round(h * dy);
         }
-        // Match server resolve_print_raster_size budget (never hard-fail).
+
         let scale = 1;
-        const maxEdge = Number(PRINT_EXPORT_MAX_EDGE) || 16384;
-        const maxMegapixels = Number(PRINT_EXPORT_MAX_MEGAPIXELS) || 100;
+        const cartCap = opts.cartCap === true;
+        const browserSafe = opts.browserSafe !== false;
+        const exportEdge = Number(PRINT_EXPORT_MAX_EDGE) || 16384;
+        let maxEdge = cartCap
+            ? Math.min(Number(PRINT_CART_MAX_EDGE) || 8192, exportEdge)
+            : exportEdge;
+        if (browserSafe && !cartCap) {
+            maxEdge = Math.min(maxEdge, this._getBrowserPrintMaxEdge());
+        }
+        const maxMegapixels = Number(PRINT_EXPORT_MAX_MEGAPIXELS) || 150;
         const maxPixels = maxMegapixels * 1000000;
         const longest = Math.max(pxW, pxH);
         if (maxEdge > 0 && longest > maxEdge) {
@@ -861,7 +912,132 @@ export const fabricEmptyCanvasMixin = {
             pxW = Math.max(1, Math.round(pxW * scale));
             pxH = Math.max(1, Math.round(pxH * scale));
         }
-        return { width: Math.max(1, pxW), height: Math.max(1, pxH), dpiX: dx, dpiY: dy };
+
+        const { inchesW, inchesH } = this._physicalSizeToInches(w, h, unit);
+        const effDpiX = inchesW > 0 ? pxW / inchesW : dx;
+        const effDpiY = inchesH > 0 ? pxH / inchesH : dy;
+        return {
+            width: Math.max(1, pxW),
+            height: Math.max(1, pxH),
+            dpiX: effDpiX,
+            dpiY: effDpiY,
+            requestedDpiX: dx,
+            requestedDpiY: dy,
+            capped: scale < 1,
+            scale,
+        };
+    },
+
+    /**
+     * Export exact print sheet with stepped downscale if the browser OOMs
+     * on large-format canvases. Aspect ratio stays locked; PDF MediaBox
+     * still uses the physical size from the sale line.
+     */
+    _exportExactPrintSheetWithFallback(entries, layout, opts = {}) {
+        const targetW = Math.max(1, Math.round(opts.outputWidth || 1));
+        const targetH = Math.max(1, Math.round(opts.outputHeight || 1));
+        const scales = Array.isArray(opts.fallbackScales) && opts.fallbackScales.length
+            ? opts.fallbackScales
+            : PRINT_EXPORT_FALLBACK_SCALES;
+        const megaPx = (targetW * targetH) / 1e6;
+        const preferJpeg = opts.format === "jpeg" || megaPx > 12;
+
+        for (const s of scales) {
+            const outW = Math.max(1, Math.round(targetW * s));
+            const outH = Math.max(1, Math.round(targetH * s));
+            try {
+                const dataUrl = this._exportEmptyCanvasExactPrintDataUrl(entries, layout, {
+                    ...opts,
+                    outputWidth: outW,
+                    outputHeight: outH,
+                    format: preferJpeg ? "jpeg" : (opts.format || "png"),
+                    quality: preferJpeg
+                        ? (typeof opts.quality === "number" ? opts.quality : 0.92)
+                        : (opts.quality ?? 1),
+                });
+                if (dataUrl && dataUrl.startsWith("data:image")) {
+                    if (s < 1) {
+                        console.warn(
+                            `Print sheet exported at ${Math.round(s * 100)}% of target ` +
+                            `(${outW}×${outH}) after canvas allocation limit.`
+                        );
+                    }
+                    return { dataUrl, width: outW, height: outH, scale: s };
+                }
+            } catch (err) {
+                console.warn(`Exact print export failed at scale ${s}:`, err);
+            }
+        }
+        return null;
+    },
+
+    /**
+     * True when a print data URL is missing or nearly all background color (blank sheet).
+     */
+    async _dataUrlIsNearBlank(dataUrl, bgColor = "#ffffff") {
+        if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image")) {
+            return true;
+        }
+        if (dataUrl.length < 800) {
+            return true;
+        }
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    const w = img.naturalWidth || img.width;
+                    const h = img.naturalHeight || img.height;
+                    if (w < 2 || h < 2) {
+                        resolve(true);
+                        return;
+                    }
+                    const maxEdge = 256;
+                    const scale = Math.min(1, maxEdge / Math.max(w, h));
+                    const cw = Math.max(1, Math.round(w * scale));
+                    const ch = Math.max(1, Math.round(h * scale));
+                    const c = document.createElement("canvas");
+                    c.width = cw;
+                    c.height = ch;
+                    const ctx = c.getContext("2d", { willReadFrequently: true });
+                    if (!ctx) {
+                        resolve(true);
+                        return;
+                    }
+                    ctx.drawImage(img, 0, 0, cw, ch);
+                    const { data } = ctx.getImageData(0, 0, cw, ch);
+                    let br = 255;
+                    let bg = 255;
+                    let bb = 255;
+                    const m = String(bgColor || "#ffffff").trim().match(/^#?([0-9a-f]{6})$/i);
+                    if (m) {
+                        const hex = m[1];
+                        br = parseInt(hex.slice(0, 2), 16);
+                        bg = parseInt(hex.slice(2, 4), 16);
+                        bb = parseInt(hex.slice(4, 6), 16);
+                    }
+                    const tol = 12;
+                    let ink = 0;
+                    const total = cw * ch || 1;
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (data[i + 3] < 8) {
+                            continue;
+                        }
+                        if (
+                            Math.abs(data[i] - br) > tol ||
+                            Math.abs(data[i + 1] - bg) > tol ||
+                            Math.abs(data[i + 2] - bb) > tol
+                        ) {
+                            ink += 1;
+                        }
+                    }
+                    resolve(ink / total < 0.0005);
+                } catch (_err) {
+                    resolve(true);
+                }
+            };
+            img.onerror = () => resolve(true);
+            img.src = dataUrl;
+        });
     },
 
     /**
@@ -882,6 +1058,13 @@ export const fabricEmptyCanvasMixin = {
         const out = document.createElement("canvas");
         out.width = outW;
         out.height = outH;
+        // Browsers silently fail or clamp huge canvases — treat mismatch as failure
+        // so large-format fallback can retry at a smaller proportional size.
+        if (out.width !== outW || out.height !== outH) {
+            throw new Error(
+                `Canvas allocation capped (${out.width}×${out.height}, wanted ${outW}×${outH})`
+            );
+        }
         const ctx = out.getContext("2d");
         if (!ctx) {
             return null;

@@ -92,16 +92,18 @@ export const fabricPrintDpiMixin = {
         if (!fabricImage) {
             return null;
         }
-        const el =
-            fabricImage._originalElement ||
-            fabricImage._element ||
-            fabricImage._cacheCanvas;
-        if (el && (el.naturalWidth || el.width)) {
-            const width = el.naturalWidth || el.width;
-            const height = el.naturalHeight || el.height;
-            if (width > 0 && height > 0) {
-                return { width, height };
-            }
+        // Source-file pixels only. Never use filtered `_element` / cache canvas
+        // (.width is layout size after filters and breaks emboss validation).
+        const el = fabricImage._originalElement;
+        if (!el) {
+            return null;
+        }
+        const isImg =
+            typeof HTMLImageElement !== "undefined" && el instanceof HTMLImageElement;
+        const width = Math.round(Number(isImg ? el.naturalWidth : el.naturalWidth || 0));
+        const height = Math.round(Number(isImg ? el.naturalHeight : el.naturalHeight || 0));
+        if (width > 0 && height > 0) {
+            return { width, height };
         }
         return null;
     },

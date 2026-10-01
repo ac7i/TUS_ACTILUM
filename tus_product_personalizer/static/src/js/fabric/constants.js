@@ -143,10 +143,22 @@ export const MIN_UPLOAD_DPI = 150;
 /**
  * Memory-safe exact-size print raster budget (must match Python
  * PRINT_EXPORT_MAX_MEGAPIXELS / PRINT_EXPORT_MAX_EDGE in print_vector.py).
- * Physical PDF page size stays at requested mm; only pixel count is capped.
+ *
+ * Large-format policy:
+ * - PDF MediaBox always stays at the physical size (mm/in) the customer chose.
+ * - Only embedded pixels are scaled down proportionally when size × PPI exceeds
+ *   this budget (never a small fixed edge like the old 4096 cart cap).
+ * - 150 MP + 16384 edge covers Letter @ 1200 and typical wide-format @ 150–300 PPI.
  */
-export const PRINT_EXPORT_MAX_MEGAPIXELS = 100;
+export const PRINT_EXPORT_MAX_MEGAPIXELS = 150;
 export const PRINT_EXPORT_MAX_EDGE = 16384;
+/**
+ * Optional lower edge for explicit cartCap:true preview-only callers.
+ * Exact print-sheet export must NOT use this (use cartCap:false).
+ */
+export const PRINT_CART_MAX_EDGE = 8192;
+/** Retry scales when the browser cannot allocate the full print canvas. */
+export const PRINT_EXPORT_FALLBACK_SCALES = [1, 0.75, 0.5, 0.35];
 
 /** RPC routes blocked for view-only shared design guests. */
 export const SHARE_WRITE_ROUTES = [
@@ -156,6 +168,7 @@ export const SHARE_WRITE_ROUTES = [
     "/canvas/enhance_image",
     "/canvas/upload_image",
     "/canvas/upload_image_multipart",
+    "/canvas/get_image",
     "/canvas/vectorize_image",
     "/canvas/remove_background",
     "/canvas/update_image",

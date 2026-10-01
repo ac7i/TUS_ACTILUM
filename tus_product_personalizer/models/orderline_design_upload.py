@@ -376,12 +376,14 @@ class OrderlineDesignUpload(models.Model):
         from odoo.addons.tus_product_personalizer.utils.print_vector import (
             ExactSizePdfError,
             build_exact_size_print_pdf,
+            is_near_blank_print_raster,
             preview_source_size,
             resize_preview_to_print_rgb,
             resolve_print_raster_size,
         )
 
         self.ensure_one()
+        source_field = "print_sheet_image" if self.print_sheet_image else "uploaded_attachment"
         source = self.print_sheet_image or self.uploaded_attachment
         if not source:
             raise UserError(_("No design image available to export at exact size."))
@@ -389,10 +391,56 @@ class OrderlineDesignUpload(models.Model):
         width, height, unit = self._resolve_exact_print_size()
         dpi_x, dpi_y = self._resolve_exact_print_ppi()
         raw = base64.b64decode(source)
+        if not raw or len(raw) < 24:
+            raise UserError(_(
+                "Print sheet is empty or corrupt. Please reopen the designer and save the design again."
+            ))
         try:
             source_size = preview_source_size(raw)
-        except Exception:
-            source_size = None
+        except Exception as err:
+            _logger.warning(
+                "Unreadable print sheet for design %s (field=%s): %s",
+                self.id,
+                source_field,
+                err,
+            )
+            raise UserError(_(
+                "Print sheet is unreadable. Please reopen the designer and save the design again."
+            )) from err
+
+        # Prefer print sheet; if it is blank but preview attachment has ink, fall back.
+        if is_near_blank_print_raster(raw):
+            fallback = self.uploaded_attachment if source_field == "print_sheet_image" else False
+            if fallback:
+                fallback_raw = base64.b64decode(fallback)
+                if fallback_raw and not is_near_blank_print_raster(fallback_raw):
+                    _logger.info(
+                        "Exact-size PDF using uploaded_attachment fallback for design %s "
+                        "(print_sheet_image was blank)",
+                        self.id,
+                    )
+                    raw = fallback_raw
+                    source_field = "uploaded_attachment"
+                    try:
+                        source_size = preview_source_size(raw)
+                    except Exception:
+                        source_size = None
+                else:
+                    raise UserError(_(
+                        "Print sheet is empty (blank page). Please reopen the designer, "
+                        "confirm your artwork is visible, and save the design again."
+                    ))
+            else:
+                raise UserError(_(
+                    "Print sheet is empty (blank page). Please reopen the designer, "
+                    "confirm your artwork is visible, and save the design again."
+                ))
+
+        _logger.info(
+            "Building exact-size PDF for design %s from %s",
+            self.id,
+            source_field,
+        )
         resolved = resolve_print_raster_size(
             width,
             height,
@@ -406,8 +454,10 @@ class OrderlineDesignUpload(models.Model):
         px_w, px_h, eff_dpi_x, eff_dpi_y, capped = resolved
         if capped:
             _logger.info(
-                "Exact-size PDF raster capped for design %s: "
-                "requested %sx%s ppi -> effective %.1fx%.1f ppi (%sx%s px)",
+                "Exact-size PDF raster capped for design %s "
+                "(large-format / high-PPI budget): "
+                "requested %sx%s ppi -> effective %.1fx%.1f ppi (%sx%s px); "
+                "MediaBox stays %s %s x %s %s",
                 self.id,
                 dpi_x,
                 dpi_y,
@@ -415,6 +465,10 @@ class OrderlineDesignUpload(models.Model):
                 eff_dpi_y,
                 px_w,
                 px_h,
+                width,
+                unit,
+                height,
+                unit,
             )
 
         color_mode = self._get_print_color_mode()

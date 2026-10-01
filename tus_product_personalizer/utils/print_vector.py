@@ -31,9 +31,17 @@ class ExactSizePdfError(Exception):
 MAX_TRACE_PIXELS = 2600
 
 # Memory-safe budget for exact-size print rasters (PDF/PNG export).
-# Physical PDF MediaBox stays at the requested mm/in; only the embedded
-# pixel count is capped so large-format × high-PPI jobs do not OOM.
-PRINT_EXPORT_MAX_MEGAPIXELS = 100
+#
+# Large-format policy (must stay in sync with fabric/constants.js):
+# - PDF MediaBox is ALWAYS the physical trim size (mm/in) from the product page.
+# - Only the embedded raster is scaled down proportionally when size × PPI
+#   exceeds this budget (megapixels and/or max edge).
+# - Never use a small fixed edge (e.g. 4096) for cart/print sheets — that
+#   destroyed high-PPI Letter (~372 PPI) and would destroy large-format jobs.
+# - 150 MP + 16384 edge: Letter @ 1200 (~135 MP) and typical wide-format
+#   banners at 150–300 PPI; larger jobs keep correct page size at lower
+#   effective PPI.
+PRINT_EXPORT_MAX_MEGAPIXELS = 150
 PRINT_EXPORT_MAX_EDGE = 16384
 
 # Pixels at/above this on every channel are treated as "white" background.
@@ -259,10 +267,13 @@ def resolve_print_raster_size(
     Order:
     1. Ideal pixels from physical size × requested PPI.
     2. Do not upscale beyond ``source_size`` when provided.
-    3. Scale down proportionally to fit ``max_megapixels`` and ``max_edge``.
+    3. Scale down **proportionally** to fit ``max_megapixels`` and ``max_edge``.
     4. Effective PPI = final pixels ÷ physical inches (for DPI tags / logs).
 
-    PDF MediaBox must still use the original physical ``width``/``height``.
+    Large-format note: a 48×96" banner at high PPI will hit the megapixel
+    budget and get a lower *effective* PPI, but the PDF MediaBox must still
+    use the original physical ``width``/``height``. Never apply a small fixed
+    edge (e.g. 4096) — that destroys both Letter @ 1200 and wide-format jobs.
     """
     dpi_w = float(dpi_x or 300)
     dpi_h = float(dpi_y if dpi_y is not None else dpi_w)
@@ -310,6 +321,48 @@ def preview_source_size(preview_bytes):
 
     img = Image.open(io.BytesIO(preview_bytes))
     return img.size
+
+
+def is_near_blank_print_raster(preview_bytes, bg_rgb=(255, 255, 255), tolerance=12, min_ink_ratio=0.0005):
+    """Return True when the raster is unreadable or effectively empty (near-solid background).
+
+    Used to reject silent blank Print-Ready PDFs. Samples pixels; requires a
+    minimum fraction of non-background ink.
+    """
+    from PIL import Image
+
+    if not preview_bytes or len(preview_bytes) < 24:
+        return True
+    try:
+        img = Image.open(io.BytesIO(preview_bytes))
+        img.load()
+    except Exception:
+        return True
+    w, h = img.size
+    if w < 2 or h < 2:
+        return True
+    rgb = img.convert("RGB")
+    # Downsample for speed on large sheets.
+    max_edge = 512
+    longest = max(w, h)
+    if longest > max_edge:
+        scale = max_edge / float(longest)
+        rgb = rgb.resize(
+            (max(1, int(w * scale)), max(1, int(h * scale))),
+            getattr(Image, "Resampling", Image).BILINEAR,
+        )
+    pixels = list(rgb.getdata())
+    total = len(pixels) or 1
+    br, bg, bb = bg_rgb
+    ink = 0
+    for r, g, b in pixels:
+        if (
+            abs(r - br) > tolerance
+            or abs(g - bg) > tolerance
+            or abs(b - bb) > tolerance
+        ):
+            ink += 1
+    return (ink / total) < float(min_ink_ratio)
 
 
 def resize_preview_to_print_rgb(

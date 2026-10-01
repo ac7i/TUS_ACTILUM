@@ -1179,31 +1179,79 @@ export const fabricMatrixMixin = {
                 const [dpiX, dpiY] = self._parsePrintQualityPpi
                     ? self._parsePrintQualityPpi(self.emptyCanvasPrintQuality)
                     : [300, 300];
+                // Full print budget (no tiny cart edge). Large-format sheets scale
+                // proportionally under MP/edge limits; PDF MediaBox stays physical size.
                 const pixels = self._physicalSizeToPrintPixels
-                    ? self._physicalSizeToPrintPixels(printW, printH, printUnit, dpiX, dpiY)
+                    ? self._physicalSizeToPrintPixels(printW, printH, printUnit, dpiX, dpiY, {
+                          cartCap: false,
+                          browserSafe: true,
+                      })
                     : null;
                 if (pixels) {
+                    if (pixels.capped) {
+                        console.info(
+                            `Print raster capped for large sheet: requested ${dpiX}×${dpiY} PPI → ` +
+                            `effective ~${Math.round(pixels.dpiX)}×${Math.round(pixels.dpiY)} ` +
+                            `(${pixels.width}×${pixels.height} px). Page size unchanged.`
+                        );
+                    }
                     const layout = sideCanvases[0]?.layout || {};
+                    const canvasBg = self._getEmptyCanvasBackground
+                        ? self._getEmptyCanvasBackground(side)
+                        : "#ffffff";
                     try {
-                        printDataUrl = self._exportEmptyCanvasExactPrintDataUrl(sideCanvases, layout, {
-                            side,
-                            outputWidth: pixels.width,
-                            outputHeight: pixels.height,
-                            format: "png",
-                            quality: 1,
-                        });
+                        const exported = self._exportExactPrintSheetWithFallback
+                            ? self._exportExactPrintSheetWithFallback(sideCanvases, layout, {
+                                  side,
+                                  outputWidth: pixels.width,
+                                  outputHeight: pixels.height,
+                              })
+                            : null;
+                        printDataUrl = exported?.dataUrl || null;
+                        if (!printDataUrl && typeof self._exportEmptyCanvasExactPrintDataUrl === "function") {
+                            const megaPx = (pixels.width * pixels.height) / 1e6;
+                            const useJpeg = megaPx > 12;
+                            printDataUrl = self._exportEmptyCanvasExactPrintDataUrl(sideCanvases, layout, {
+                                side,
+                                outputWidth: pixels.width,
+                                outputHeight: pixels.height,
+                                format: useJpeg ? "jpeg" : "png",
+                                quality: useJpeg ? 0.92 : 1,
+                            });
+                        }
                     } catch (err) {
                         console.warn("Exact print sheet export failed:", err);
                         printDataUrl = null;
                     }
+                    // Never persist a known-empty white sheet as the print raster.
+                    if (
+                        printDataUrl &&
+                        typeof self._dataUrlIsNearBlank === "function" &&
+                        (await self._dataUrlIsNearBlank(printDataUrl, canvasBg))
+                    ) {
+                        console.warn("Print sheet export looked blank; falling back to preview.");
+                        printDataUrl = null;
+                    }
                 }
             } else {
-                // Mockup products: high-res composite without the 1024 preview cap.
+                // Mockup products: high-res composite (aligned with export max edge).
                 printDataUrl = await self._exportSideDuringBatch(side, {
                     format: "png",
                     quality: 1,
-                    maxSize: 4096,
+                    maxSize: 8192,
                 });
+            }
+            // If print sheet is missing/blank, keep preview as print_data only when it has ink.
+            if (!printDataUrl && dataUrl) {
+                const canvasBg = self._getEmptyCanvasBackground
+                    ? self._getEmptyCanvasBackground(side)
+                    : "#ffffff";
+                if (
+                    typeof self._dataUrlIsNearBlank !== "function" ||
+                    !(await self._dataUrlIsNearBlank(dataUrl, canvasBg))
+                ) {
+                    printDataUrl = dataUrl;
+                }
             }
 
             const activeAreas = sideCanvases

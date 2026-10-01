@@ -40,6 +40,18 @@ import {
     resolveCmykForColor,
     updateCmykReadout,
 } from "./fabric/color_cmyk";
+import { TUS_FABRIC_CUSTOM_PROPS } from "./fabric/constants";
+
+/** Extra props always persisted in canvas JSON (history + design save). */
+const TUS_CANVAS_JSON_PROPS = [
+    "id",
+    "locked",
+    "title",
+    "extra_elem",
+    "_curvedMeta",
+    "type_custom",
+    ...TUS_FABRIC_CUSTOM_PROPS,
+];
 
 publicWidget.registry.Fabric = publicWidget.Widget.extend({
     ...fabricTemplatesMixin,
@@ -1922,12 +1934,23 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 }
             });
             await self.canvas.renderAll();
-            const json = self.canvas.toJSON(); // Get canvas as JSON
+            const json = self._fabricCanvasToJSON(self.canvas);
             self.undoStack.push(json);
             self.historyProcessing = false;
             self._syncHistoryButtons();
             self._updateDesignerPriceDisplay();
         });
+    },
+
+    /**
+     * Serialize Fabric canvas including finish/source-pixel custom props so
+     * undo/redo and design reload never drop emboss validation metadata.
+     */
+    _fabricCanvasToJSON(fab) {
+        if (!fab || typeof fab.toJSON !== "function") {
+            return null;
+        }
+        return fab.toJSON(TUS_CANVAS_JSON_PROPS);
     },
 
     add_canvas_events: function (fabricCanvas) {
@@ -1945,6 +1968,18 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     return;
                 }
                 if (obj && obj.type == "image") {
+                    // Capture original file pixels BEFORE applyFilters replaces _element.
+                    const orig = obj._originalElement;
+                    const sw = Math.round(Number(orig?.naturalWidth || 0));
+                    const sh = Math.round(Number(orig?.naturalHeight || 0));
+                    if (sw > 0 && sh > 0) {
+                        if (!obj.sourcePixelWidth) {
+                            obj.sourcePixelWidth = sw;
+                        }
+                        if (!obj.sourcePixelHeight) {
+                            obj.sourcePixelHeight = sh;
+                        }
+                    }
                     if (!obj.filters) {
                         obj.filters = [];
                     }
@@ -1954,17 +1989,6 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     const hueRotationFilter = new fabric.Image.filters.HueRotation({ rotation: 0 });
                     obj.filters.push(brightnessFilter, contrastFilter, saturationFilter, hueRotationFilter);
                     obj.applyFilters();
-                    const el = obj._element || obj.getElement?.();
-                    const sw = Math.round(Number(el?.naturalWidth || 0));
-                    const sh = Math.round(Number(el?.naturalHeight || 0));
-                    if (sw > 0 && sh > 0) {
-                        if (!obj.sourcePixelWidth) {
-                            obj.sourcePixelWidth = sw;
-                        }
-                        if (!obj.sourcePixelHeight) {
-                            obj.sourcePixelHeight = sh;
-                        }
-                    }
                 }
                 if (obj) {
                     ensureObjectFinishDefaults(obj);
@@ -3003,7 +3027,7 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
         this.redoStack = [];
 
-        const json = this.canvas.toJSON();
+        const json = this._fabricCanvasToJSON(this.canvas);
         const jsonKey = JSON.stringify(json);
 
         if (this.undoStack.length > 0) {
@@ -3650,88 +3674,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
         ev.preventDefault();
         ev.stopPropagation();
 
-        const $img = $item.find("img.default-canvas-img");
-        const src = ($img.attr("src") || "").trim();
-
         self.startLoader("Adding Image...", { light: true });
 
-        const loadSvgText = function () {
-            if (src.startsWith("data:")) {
-                const payload = src.split(",")[1] || "";
-                if (!payload) {
-                    return Promise.reject(new Error("Empty image data."));
-                }
-                try {
-                    const decoded = atob(payload);
-                    if (decoded.trim().startsWith("<")) {
-                        return Promise.resolve(decoded);
-                    }
-                } catch (_) {
-                    // fall through to fetch
-                }
-            }
-            return fetch("/web/content/canvas.image/" + imageId + "/file")
-                .then(function (response) {
-                    if (!response.ok) {
-                        throw new Error("Could not load image from library.");
-                    }
-                    return response.text();
-                });
-        };
-
-        loadSvgText()
-            .then(function (svgText) {
-                const isPhoto = self._isEmbeddedPhotoSvgFromUpload(null, svgText);
-                if (isPhoto) {
-                    let dims =
-                        self._parseEmbeddedImagePixelsFromSvg(svgText) ||
-                        self._parseSvgRasterDimensions(svgText);
-                    const dimPromise = dims
-                        ? Promise.resolve(dims)
-                        : src
-                            ? self._readImageElementDimensions(src).catch(function () {
-                                return null;
-                            })
-                            : Promise.resolve(null);
-                    return dimPromise
-                        .then(function (resolvedDims) {
-                            if (!resolvedDims) {
-                                return null;
-                            }
-                            return self
-                                ._confirmLowDpiUploadIfNeeded(
-                                    resolvedDims.width,
-                                    resolvedDims.height,
-                                    self.canvas,
-                                    null
-                                )
-                                .then(function () {
-                                    return resolvedDims;
-                                });
-                        })
-                        .then(function (resolvedDims) {
-                            return self._loadSvgGroupOnCanvas(svgText, {
-                                backendId: imageId,
-                                targetCanvas: self.canvas,
-                                isEmbeddedPhotoSvg: true,
-                                sourceWidth: resolvedDims?.width,
-                                sourceHeight: resolvedDims?.height,
-                                filePixels: resolvedDims,
-                            });
-                        })
-                        .catch(function (err) {
-                            if (err && (err.dpiCancelled || err.message === "dpi_cancelled")) {
-                                return Promise.reject(err);
-                            }
-                            throw err;
-                        });
-                }
-                return self._loadSvgGroupOnCanvas(svgText, {
-                    backendId: imageId,
-                    targetCanvas: self.canvas,
-                    isEmbeddedPhotoSvg: false,
-                });
-            })
+        Promise.resolve(self._addLibraryImageToCanvas(imageId, self.canvas))
             .catch(function (err) {
                 if (err && (err.dpiCancelled || err.message === "dpi_cancelled")) {
                     return;
@@ -4202,8 +4147,11 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     clonedObj.sourceFileDpi = self.currentElement.sourceFileDpi;
                 }
                 ensureObjectFinishDefaults(clonedObj);
-                if (clonedObj.type_custom === "clipart" && !clonedObj.tusVarnishType) {
+                if (clonedObj.type_custom === "clipart") {
                     clonedObj.tusVarnishType = "none";
+                    clonedObj.tusVarnishCoverMode = "all";
+                    delete clonedObj.tusVarnishAreaFile;
+                    delete clonedObj.tusVarnishAreaFileName;
                 }
                 self.canvas.add(clonedObj);
                 self.canvas.setActiveObject(clonedObj);
@@ -5398,16 +5346,9 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     fab.discardActiveObject();
                     fab.requestRenderAll();
 
-                    const fabricJSON = fab.toJSON([
-                        "id", "locked", "title", "extra_elem", "_curvedMeta",
-                        "tusFinishEffect", "tusReliefMm", "tusVarnishType", "tusFoilMetal",
-                        "tusTextureIntensityMm", "tusTextureActive",
-                        "tusTextureFile", "tusTextureFileName",
-                        "tusVarnishCoverMode", "tusVarnishAreaFile", "tusVarnishAreaFileName",
-                        "tusVarnishZonesDescription",
-                        "backend_id", "isVectorSvgGroup", "isEmbeddedPhotoSvg",
-                        "tusArtworkTone",
-                    ]);
+                    const fabricJSON = self._fabricCanvasToJSON
+                        ? self._fabricCanvasToJSON(fab)
+                        : fab.toJSON(TUS_CANVAS_JSON_PROPS);
 
                     records.push({
                         area_id: entry.id,
@@ -6671,9 +6612,16 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                 return null;
             }
 
+            // Render directly at export size — avoids full-res composite then downscale.
+            const maxExportPx = opts.maxSize || 1024;
+            const longest = Math.max(naturalWidth, naturalHeight);
+            const outScale = longest > maxExportPx ? maxExportPx / longest : 1;
+            const outW = Math.max(1, Math.round(naturalWidth * outScale));
+            const outH = Math.max(1, Math.round(naturalHeight * outScale));
+
             const out = document.createElement("canvas");
-            out.width = naturalWidth;
-            out.height = naturalHeight;
+            out.width = outW;
+            out.height = outH;
             let ctx;
             try {
                 ctx = out.getContext("2d", { alpha: true, colorSpace: "srgb" });
@@ -6686,10 +6634,10 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = "high";
 
-            ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight);
+            ctx.drawImage(img, 0, 0, outW, outH);
 
-            const scaleX = naturalWidth / displayWidth;
-            const scaleY = naturalHeight / displayHeight;
+            const scaleX = outW / displayWidth;
+            const scaleY = outH / displayHeight;
 
             for (const entry of entries) {
                 const fab = entry.canvas;
@@ -6719,8 +6667,8 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
                     if (widthCSS < 1 || heightCSS < 1) continue;
                     const relLeft = leftCSS - (layout.offsetX || 0);
                     const relTop = topCSS - (layout.offsetY || 0);
-                    const cachedScaleX = naturalWidth / layout.imgDisplayW;
-                    const cachedScaleY = naturalHeight / layout.imgDisplayH;
+                    const cachedScaleX = outW / layout.imgDisplayW;
+                    const cachedScaleY = outH / layout.imgDisplayH;
                     destLeft = relLeft * cachedScaleX;
                     destTop = relTop * cachedScaleY;
                     destW = widthCSS * cachedScaleX;
@@ -6755,21 +6703,10 @@ publicWidget.registry.Fabric = publicWidget.Widget.extend({
 
             const format = (opts.format || "png").toLowerCase();
             const quality = typeof opts.quality === "number" ? opts.quality : 1;
-            const maxExportPx = opts.maxSize || 1024;
-            let outputCanvas = out;
-            const longest = Math.max(naturalWidth, naturalHeight);
-            if (longest > maxExportPx) {
-                const ratio = maxExportPx / longest;
-                const scaled = document.createElement("canvas");
-                scaled.width = Math.max(1, Math.round(naturalWidth * ratio));
-                scaled.height = Math.max(1, Math.round(naturalHeight * ratio));
-                scaled.getContext("2d").drawImage(out, 0, 0, scaled.width, scaled.height);
-                outputCanvas = scaled;
-            }
             if (opts.returnCanvas) {
-                return outputCanvas;
+                return out;
             }
-            return outputCanvas.toDataURL(
+            return out.toDataURL(
                 format === "jpeg" ? "image/jpeg" : "image/png",
                 quality
             );

@@ -91,33 +91,50 @@ export const fabricFinishUploadMixin = {
         });
     },
 
+    /**
+     * Trusted source-file pixel size for emboss/varnish mask validation.
+     * Never use Fabric layout size, scale, or filtered `_element` cache.
+     */
+    _readTrustedSourcePixelsFromElement(el) {
+        if (!el) {
+            return null;
+        }
+        // Prefer natural* on HTMLImageElement; never use canvas cache .width
+        // (that is layout/filter size and changes after transforms/filters).
+        const isImg = typeof HTMLImageElement !== "undefined" && el instanceof HTMLImageElement;
+        const width = Math.round(Number(isImg ? el.naturalWidth : el.naturalWidth || 0));
+        const height = Math.round(Number(isImg ? el.naturalHeight : el.naturalHeight || 0));
+        if (width > 0 && height > 0) {
+            return { width, height };
+        }
+        return null;
+    },
+
     _getObjectSourcePixelSize(obj) {
         if (!obj) {
             return null;
         }
-        // Always prefer persisted source metadata (independent of scale/rotate).
+        // Prefer persisted source metadata only when already trusted (upload/sync).
         let width = Math.round(Number(obj.sourcePixelWidth || obj._tusSourceWidth || 0));
         let height = Math.round(Number(obj.sourcePixelHeight || obj._tusSourceHeight || 0));
         if (width > 0 && height > 0) {
             return { width, height, dpi: obj.sourceFileDpi || null };
         }
         if (obj.type === "image") {
-            const el = obj._element || obj.getElement?.();
-            width = Math.round(Number(el?.naturalWidth || el?.width || 0));
-            height = Math.round(Number(el?.naturalHeight || el?.height || 0));
-            // Do not fall back to obj.width/height — those are Fabric layout units
-            // and change with transforms / SVG viewBox mapping.
-            if (width > 0 && height > 0) {
-                obj.sourcePixelWidth = width;
-                obj.sourcePixelHeight = height;
-                return { width, height, dpi: obj.sourceFileDpi || null };
+            const fromOriginal = this._readTrustedSourcePixelsFromElement(obj._originalElement);
+            if (fromOriginal) {
+                // Persist only from original file pixels — never from _element cache.
+                obj.sourcePixelWidth = fromOriginal.width;
+                obj.sourcePixelHeight = fromOriginal.height;
+                return { ...fromOriginal, dpi: obj.sourceFileDpi || null };
             }
+            // Fail closed: do not invent dims from layout / filtered cache.
+            return null;
         }
         if (obj.type === "group" && typeof obj.getObjects === "function") {
             for (const child of obj.getObjects()) {
                 const nested = this._getObjectSourcePixelSize(child);
                 if (nested) {
-                    // Persist on the group so later transforms still validate.
                     obj.sourcePixelWidth = nested.width;
                     obj.sourcePixelHeight = nested.height;
                     if (nested.dpi) {

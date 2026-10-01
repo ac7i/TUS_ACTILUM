@@ -24,17 +24,26 @@ function configureColorTexture(THREE, tex, renderer) {
     return tex;
 }
 
-function configureDataTexture(THREE, tex, renderer) {
+function configureDataTexture(THREE, tex, renderer, options = {}) {
     if (!tex) return tex;
     if (THREE.LinearEncoding !== undefined) {
         tex.encoding = THREE.LinearEncoding;
     }
     tex.flipY = true;
-    tex.generateMipmaps = true;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    if (renderer?.capabilities) {
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    // Strict mask maps (clearcoat/roughness): no mipmaps — prevents gloss bleed
+    // from bright varnish texels into neighboring matte (black) areas.
+    if (options.strictMask) {
+        tex.generateMipmaps = false;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.anisotropy = 1;
+    } else {
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        if (renderer?.capabilities) {
+            tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        }
     }
     tex.needsUpdate = true;
     return tex;
@@ -248,10 +257,14 @@ export class TusPBRViewer {
         } else {
             planeW = maxSize * aspect;
         }
-        this.mesh.geometry.dispose();
-        const segments = this._resolveMeshSegments();
-        this.mesh.geometry = new THREE.PlaneGeometry(planeW, planeH, segments, segments);
-        this._attachProductOutline(THREE);
+        const segments = this._resolveMeshSegments(hasEmboss);
+        const geomKey = `${planeW.toFixed(4)}x${planeH.toFixed(4)}:${segments}`;
+        if (this._geomKey !== geomKey) {
+            this.mesh.geometry.dispose();
+            this.mesh.geometry = new THREE.PlaneGeometry(planeW, planeH, segments, segments);
+            this._geomKey = geomKey;
+            this._attachProductOutline(THREE);
+        }
 
         const usePhysical = hasEmboss || hasVarnish || hasFoil;
 
@@ -316,9 +329,9 @@ export class TusPBRViewer {
         if ((hasVarnish && varnishType !== "none") || hasFoil) {
             roughTex = canvasToTexture(THREE, maps.roughnessCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: true,
+                generateMipmaps: false,
             });
-            configureDataTexture(THREE, roughTex, this.renderer);
+            configureDataTexture(THREE, roughTex, this.renderer, { strictMask: true });
             roughTex.wrapS = roughTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(roughTex);
         }
@@ -327,9 +340,9 @@ export class TusPBRViewer {
         if (hasVarnish && maps.clearcoatCanvas) {
             clearcoatTex = canvasToTexture(THREE, maps.clearcoatCanvas, {
                 colorSpace: "linear",
-                generateMipmaps: true,
+                generateMipmaps: false,
             });
-            configureDataTexture(THREE, clearcoatTex, this.renderer);
+            configureDataTexture(THREE, clearcoatTex, this.renderer, { strictMask: true });
             clearcoatTex.wrapS = clearcoatTex.wrapT = THREE.ClampToEdgeWrapping;
             this._textures.push(clearcoatTex);
         }
@@ -384,15 +397,15 @@ export class TusPBRViewer {
         material.bumpMap = dispTex || normalTex;
         material.bumpScale = hasEmboss ? Math.max(0.005, reliefScale * 0.4) : 0.001;
         // Roughness map already encodes matte substrate + shiny varnish regions.
-        // Keep base roughness near 1 so the map alone controls sheen (no global gloss).
-        material.roughness = hasVarnish ? 1.0 : 0.78;
-        material.roughnessMap = roughTex;
+        // When no varnish: keep substrate matte so base texture never looks glossy.
+        material.roughness = hasVarnish ? 1.0 : 0.92;
+        material.roughnessMap = hasVarnish ? roughTex : null;
         material.metalnessMap = metalTex;
         material.metalness = hasFoil ? pbr.foilMetalness : 0.0;
         // Clearcoat only where clearcoatMap is bright; keep strength but map-gated.
         material.clearcoat = hasVarnish ? pbr.clearcoat : 0;
         material.clearcoatRoughness = hasVarnish ? pbr.clearcoatRoughness : 1;
-        material.clearcoatMap = clearcoatTex;
+        material.clearcoatMap = hasVarnish ? clearcoatTex : null;
 
         // Sheen is uniform on MeshPhysicalMaterial — keep it off so satin/gloss
         // stay confined to clearcoatMap / roughnessMap regions.
@@ -478,10 +491,24 @@ export class TusPBRViewer {
         }
     }
 
-    _resolveMeshSegments() {
+    _resolveMeshSegments(hasEmboss = false) {
         try {
             const isMobile = typeof window !== "undefined"
                 && (window.matchMedia?.("(max-width: 768px)")?.matches || navigator.maxTouchPoints > 1);
+            // Emboss uses vertex displacement — denser mesh for smooth letter curves.
+            if (hasEmboss) {
+                if (isMobile) {
+                    return 384;
+                }
+                const mem = navigator.deviceMemory || 4;
+                if (mem >= 8) {
+                    return 768;
+                }
+                if (mem <= 4) {
+                    return 384;
+                }
+                return 640;
+            }
             if (isMobile) {
                 return 256;
             }
@@ -499,7 +526,7 @@ export class TusPBRViewer {
             }
             return 320;
         } catch (_err) {
-            return 256;
+            return hasEmboss ? 384 : 256;
         }
     }
 

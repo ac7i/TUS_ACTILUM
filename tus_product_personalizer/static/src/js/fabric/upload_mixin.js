@@ -388,6 +388,34 @@ export const fabricUploadMixin = {
         });
     },
 
+    /**
+     * Add a library canvas.image to the active canvas using stored original
+     * source dimensions (never the downscaled preview size).
+     */
+    _addLibraryImageToCanvas: async function (imageId, canvas) {
+        const target = canvas || this.canvas;
+        if (!imageId || !target) {
+            return null;
+        }
+        const result = await this.rpc("/canvas/get_image", { image_id: imageId });
+        if (!result || result.error) {
+            throw new Error(result?.error || _t("Could not load image from library."));
+        }
+
+        const isPhoto = this._isEmbeddedPhotoSvgFromUpload(result, result.svg);
+        if (isPhoto && result.source_width && result.source_height) {
+            await this._confirmLowDpiUploadIfNeeded(
+                result.source_width,
+                result.source_height,
+                target,
+                result.source_dpi || null
+            );
+        }
+
+        // Same apply path as first upload — keeps emboss source pixels correct.
+        return this._applyUploadResultToCanvas(result, target, null);
+    },
+
     _applyUploadResultToCanvas: function (result, canvas, fileMeta) {
         const self = this;
         if (result.error === "read_only") {
