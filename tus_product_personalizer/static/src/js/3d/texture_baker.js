@@ -750,10 +750,12 @@ function buildInkMaskImageData(imgData, obj, mode, reliefFactor = 1) {
     scratch.height = imgData.height;
     const out = scratch.getContext("2d").createImageData(imgData.width, imgData.height);
     const isImageLike = obj.type === "image" || obj.type === "group";
-    // For opaque photos, treat a near-uniform border color as the background so
-    // only the meaningful subject is raised (no rectangular relief block).
+    // Emboss/deboss may punch out photo background. Varnish "all" must not —
+    // using photo luminance as a coat map lights facial features and looks inverted.
     const bgColor =
-        isImageLike && mode !== "foil" ? estimateBorderBackgroundColor(imgData) : null;
+        isImageLike && mode !== "foil" && mode !== "varnish"
+            ? estimateBorderBackgroundColor(imgData)
+            : null;
     const BG_DISTANCE = 46;
 
     for (let i = 0; i < imgData.data.length; i += 4) {
@@ -763,6 +765,13 @@ function buildInkMaskImageData(imgData, obj, mode, reliefFactor = 1) {
         const a = imgData.data[i + 3];
         let alpha = a / 255;
         if (alpha <= 0.02) {
+            continue;
+        }
+        if (mode === "varnish") {
+            out.data[i] = 255;
+            out.data[i + 1] = 255;
+            out.data[i + 2] = 255;
+            out.data[i + 3] = 255;
             continue;
         }
 

@@ -58,6 +58,11 @@ export class TusPBRViewer {
         this._animationId = null;
         this._onResize = this._onResize.bind(this);
         this._materialMode = null;
+        this.glossMesh = null;
+        this._glossViewDir = null;
+        this._glossLightWorld = null;
+        this._glossLightWorld2 = null;
+        this._glossViewDir2 = null;
     }
 
     static isWebGLAvailable() {
@@ -138,6 +143,10 @@ export class TusPBRViewer {
         this._materialMode = "basic";
         this._outline = null;
         this._attachProductOutline(THREE);
+        this._glossLightWorld = new THREE.Vector3(1.55, 1.05, 2.55);
+        this._glossLightWorld2 = new THREE.Vector3(-1.25, 0.45, 2.6);
+        this._glossViewDir = new THREE.Vector3();
+        this._glossViewDir2 = new THREE.Vector3();
 
         if (THREE.OrbitControls) {
             this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -175,6 +184,143 @@ export class TusPBRViewer {
         });
     }
 
+    _createGlossMaterial(THREE) {
+        return new THREE.ShaderMaterial({
+            lights: false,
+            uniforms: {
+                uLightDir: { value: new THREE.Vector3(0.45, 0.3, 0.84) },
+                uLightDir2: { value: new THREE.Vector3(-0.4, 0.15, 0.9) },
+                uShininess: { value: 38.0 },
+                uIntensity: { value: 0.55 },
+                uMask: { value: null },
+                uHasMask: { value: 0.0 },
+            },
+            vertexShader: `
+                varying vec3 vNormalView;
+                varying vec3 vViewDir;
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vNormalView = normalize(normalMatrix * normal);
+                    vViewDir = normalize(-mvPosition.xyz);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uLightDir;
+                uniform vec3 uLightDir2;
+                uniform float uShininess;
+                uniform float uIntensity;
+                uniform sampler2D uMask;
+                uniform float uHasMask;
+                varying vec3 vNormalView;
+                varying vec3 vViewDir;
+                varying vec2 vUv;
+                void main() {
+                    vec3 N = normalize(vNormalView);
+                    vec3 V = normalize(vViewDir);
+                    vec3 L1 = normalize(uLightDir);
+                    vec3 L2 = normalize(uLightDir2);
+                    vec3 H1 = normalize(L1 + V);
+                    vec3 H2 = normalize(L2 + V);
+                    float spec = pow(max(dot(N, H1), 0.0), uShininess)
+                        + pow(max(dot(N, H2), 0.0), uShininess) * 0.5;
+                    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+                    float shine = spec + fresnel * 0.18;
+                    float mask = 1.0;
+                    if (uHasMask > 0.5) {
+                        vec3 m = texture2D(uMask, vUv).rgb;
+                        mask = max(m.r, max(m.g, m.b));
+                    }
+                    float a = min(1.0, shine * uIntensity) * mask;
+                    gl_FragColor = vec4(vec3(a), a);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.FrontSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+        });
+    }
+
+    _ensureGlossMesh(THREE) {
+        if (!this.mesh || !this.productGroup) {
+            return;
+        }
+        if (!this.glossMesh) {
+            this.glossMesh = new THREE.Mesh(this.mesh.geometry, this._createGlossMaterial(THREE));
+            this.glossMesh.renderOrder = 3;
+            this.glossMesh.frustumCulled = false;
+            this.productGroup.add(this.glossMesh);
+        } else {
+            this.glossMesh.geometry = this.mesh.geometry;
+        }
+    }
+
+    _setGlossOverlay(THREE, { enabled = false, varnishType = "none", clearcoatTex = null } = {}) {
+        if (!enabled) {
+            if (this.glossMesh) {
+                this.glossMesh.visible = false;
+                const uniforms = this.glossMesh.material?.uniforms;
+                if (uniforms?.uMask) {
+                    uniforms.uMask.value = null;
+                }
+            }
+            return;
+        }
+        this._ensureGlossMesh(THREE);
+        const uniforms = this.glossMesh.material.uniforms;
+        uniforms.uMask.value = clearcoatTex;
+        uniforms.uHasMask.value = clearcoatTex ? 1.0 : 0.0;
+        if (varnishType === "satin") {
+            uniforms.uShininess.value = 18.0;
+            uniforms.uIntensity.value = 0.42;
+        } else {
+            uniforms.uShininess.value = 38.0;
+            uniforms.uIntensity.value = 0.55;
+        }
+        this.glossMesh.visible = true;
+        this._syncGlossLight();
+    }
+
+    _syncGlossLight() {
+        if (!this.glossMesh?.visible || !this.camera || !this._glossLightWorld || !this._glossViewDir) {
+            return;
+        }
+        const uniforms = this.glossMesh.material?.uniforms;
+        if (!uniforms?.uLightDir) {
+            return;
+        }
+        this._glossViewDir.copy(this._glossLightWorld).normalize();
+        this._glossViewDir.transformDirection(this.camera.matrixWorldInverse);
+        uniforms.uLightDir.value.copy(this._glossViewDir);
+        if (this._glossLightWorld2 && this._glossViewDir2 && uniforms.uLightDir2) {
+            this._glossViewDir2.copy(this._glossLightWorld2).normalize();
+            this._glossViewDir2.transformDirection(this.camera.matrixWorldInverse);
+            uniforms.uLightDir2.value.copy(this._glossViewDir2);
+        }
+    }
+
+    _disposeGlossMesh() {
+        if (!this.glossMesh) {
+            return;
+        }
+        try {
+            this.productGroup?.remove(this.glossMesh);
+        } catch (_err) {
+            // ignore
+        }
+        if (this.glossMesh.material) {
+            this.glossMesh.material.dispose();
+        }
+        this.glossMesh = null;
+    }
+
     _setMaterialMode(THREE, mode) {
         if (this._materialMode === mode && this.mesh?.material) {
             return;
@@ -210,6 +356,7 @@ export class TusPBRViewer {
         if (this.controls) {
             this.controls.update();
         }
+        this._syncGlossLight();
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -265,8 +412,14 @@ export class TusPBRViewer {
             this._geomKey = geomKey;
             this._attachProductOutline(THREE);
         }
+        if (this.glossMesh) {
+            this.glossMesh.geometry = this.mesh.geometry;
+        }
 
-        const usePhysical = hasEmboss || hasVarnish || hasFoil;
+        // Last-push invert: full-image gloss used MeshPhysicalMaterial, so lights
+        // shaded the photo (orange feature edges). Gloss-only stays unlit + overlay.
+        const varnishOn = hasVarnish && varnishType !== "none";
+        const usePhysical = hasEmboss || hasFoil;
 
         this._setFoilLighting(hasFoil);
 
@@ -294,16 +447,33 @@ export class TusPBRViewer {
         }
 
         if (!usePhysical) {
-            // Unlit path — pixel-accurate match with the 2D editor composite.
             material.map = colorTex;
             material.alphaMap = null;
             material.transparent = true;
             material.alphaTest = 0.001;
             material.needsUpdate = true;
+
+            let clearcoatTex = null;
+            if (varnishOn && maps.clearcoatCanvas) {
+                clearcoatTex = canvasToTexture(THREE, maps.clearcoatCanvas, {
+                    colorSpace: "linear",
+                    generateMipmaps: false,
+                });
+                configureDataTexture(THREE, clearcoatTex, this.renderer, { strictMask: true });
+                clearcoatTex.wrapS = clearcoatTex.wrapT = THREE.ClampToEdgeWrapping;
+                this._textures.push(clearcoatTex);
+            }
+            this._setGlossOverlay(THREE, {
+                enabled: varnishOn,
+                varnishType,
+                clearcoatTex,
+            });
             this._updateDimensionLabels(maps.widthMm, maps.heightMm, planeW, planeH);
             this._onResize();
             return;
         }
+
+        this._setGlossOverlay(THREE, { enabled: false });
 
         let dispTex = null;
         let normalTex = null;
@@ -389,13 +559,13 @@ export class TusPBRViewer {
         // Clamp physical vertex offset to avoid geometry tearing/waves at high relief values
         material.displacementScale = Math.min(0.045, reliefScale);
         material.displacementBias = 0;
-        material.normalMap = normalTex;
+        material.normalMap = hasEmboss ? normalTex : null;
         material.normalScale = new THREE.Vector2(
             hasEmboss ? pbr.normalStrength * 1.8 : 1,
             hasEmboss ? pbr.normalStrength * 1.8 : 1
         );
-        material.bumpMap = dispTex || normalTex;
-        material.bumpScale = hasEmboss ? Math.max(0.005, reliefScale * 0.4) : 0.001;
+        material.bumpMap = hasEmboss ? (dispTex || normalTex) : null;
+        material.bumpScale = hasEmboss ? Math.max(0.005, reliefScale * 0.4) : 0;
         // Roughness map already encodes matte substrate + shiny varnish regions.
         // When no varnish: keep substrate matte so base texture never looks glossy.
         material.roughness = hasVarnish ? 1.0 : 0.92;
@@ -476,6 +646,7 @@ export class TusPBRViewer {
         }
         this._disposeTextures();
         this._disposeOutline();
+        this._disposeGlossMesh();
         if (this.mesh?.geometry) {
             this.mesh.geometry.dispose();
         }
