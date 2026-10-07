@@ -147,9 +147,13 @@ async function drawObjectTextureFile(
 }
 
 /**
- * Spot varnish: layer silhouette ∩ uploaded mask luminance.
- * White/light = varnish on; dark = no varnish. Never draws printable ink.
- * Uses the object's full transform. On mask failure, skips coat (no full-silhouette fallback).
+ * Spot varnish: layer silhouette ∩ uploaded mask.
+ * Never draws printable ink. Uses the object's full transform.
+ * On mask failure, skips coat (no full-silhouette fallback).
+ *
+ * Polarity auto-detect (print-shop vs spot-UV mockups):
+ * - White-majority (black marks) → black/dark = varnish (client emboss-style masks)
+ * - Dark-majority (white marks) → white/light = varnish (lips-on-black mocks)
  */
 async function drawObjectVarnishSpotMask(
     ctx, fabricCanvas, obj, destLeft, destTop, destW, destH, dataUrl
@@ -197,12 +201,31 @@ async function drawObjectVarnishSpotMask(
         mctx.drawImage(img, 0, 0);
         const id = mctx.getImageData(0, 0, srcW, srcH);
         const data = id.data;
-        // Binary coat: white/light mask = full varnish, dark = none.
-        // Soft midtones leak gloss outside the intended spot (e.g. lips).
+
+        let brightCount = 0;
+        let darkCount = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i + 3] < 5) {
+                continue;
+            }
+            const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+            if (lum >= 0.5) {
+                brightCount += 1;
+            } else {
+                darkCount += 1;
+            }
+        }
+        // White paper + black spots (client test) → coat on dark. Black paper +
+        // white spots (lips mock) → coat on light.
+        const darkIsCoat = brightCount > darkCount;
+
+        // Binary coat — soft midtones leak gloss outside the intended spot.
         for (let i = 0; i < data.length; i += 4) {
             const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
             const srcA = data[i + 3] / 255;
-            const a = (lum * srcA) >= 0.5 ? 255 : 0;
+            const strength = lum * srcA;
+            const coat = darkIsCoat ? strength < 0.5 : strength >= 0.5;
+            const a = coat ? 255 : 0;
             data[i] = 255;
             data[i + 1] = 255;
             data[i + 2] = 255;
